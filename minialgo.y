@@ -83,8 +83,8 @@ declarations:
 ;
 
 liste_declarations:
-    liste_declarations declaration
-    | declaration
+    /* vide */
+    | liste_declarations declaration
 ;
 
 declaration:
@@ -182,12 +182,14 @@ affectation:
         else if (isConstante($1))
             printf("Erreur semantique ligne %d : '%s' est une constante, affectation interdite\n", ligne, $1);
         else {
-            if (!compatible(getType($1), $3.type))
-                printf("Erreur semantique ligne %d : incompatibilite de type (%s = %s)\n",
-                       ligne, getType($1), $3.type);
-            generer_quad("=", $3.place, "", $1);
-            setInitialisee($1);
-        }
+    if (!compatible(getType($1), $3.type)) {
+        printf("Erreur semantique ligne %d : incompatibilite de type (%s = %s)\n",
+               ligne, getType($1), $3.type);
+    } else {
+        generer_quad("=", $3.place, "", $1);
+        setInitialisee($1);
+    }
+}
     }
     /* accès tableau : T[i] = expr */
     | IDF '[' expression ']' EQL expression ';' {
@@ -337,45 +339,56 @@ condition:
    INSTRUCTION IF / ELSE
    ════════════════════════════════════════
 
-   Quadruplets générés :
-     <évaluation condition>
-     ifFalse cond _ Lelse
+   Correction du conflit réduction/réduction :
+   On utilise UNE SEULE règle IF avec un
+   non-terminal "partie_else" optionnel.
+   Cela évite que Bison génère deux règles
+   vides @1 et @2 indiscernables au même
+   point de lecture ('{' après la condition).
+
+   Quadruplets générés (avec ELSE) :
+     ifFalse cond _ Lfaux
      <instructions THEN>
      goto _ _ Lend
-     label _ _ Lelse
+     label _ _ Lfaux
      <instructions ELSE>
      label _ _ Lend
+
+   Quadruplets générés (sans ELSE) :
+     ifFalse cond _ Lfaux
+     <instructions THEN>
+     goto _ _ Lend   <- goto vers Lend = Lfaux ici (même label)
+     label _ _ Lfaux
+     label _ _ Lend  <- optimisé en 1 seul label après
    ════════════════════════════════════════ */
 
 InstructionIf:
     IF '(' condition ')'
-    {
-        char *lelse = newLabel();
-        generer_quad("ifFalse", $3.place, "", lelse);
-        $<str>$ = lelse;
-    }
+        {
+            /* mid-rule unique : saut vers le bloc "faux" */
+            char *lfaux = newLabel();
+            generer_quad("ifFalse", $3.place, "", lfaux);
+            $<str>$ = lfaux;      /* position $5 */
+        }
     '{' instructions '}'
-    {
-        generer_quad("label", "", "", $<str>3);
-    }
+        {
+            /* après le bloc THEN : goto fin + poser label faux */
+            char *lend = newLabel();
+            generer_quad("goto",  "", "", lend);
+            generer_quad("label", "", "", $<str>5);
+            $<str>$ = lend;       /* position $9 */
+        }
+    partie_else
+        {
+            /* label de fin — atteint que l'on passe par THEN ou ELSE */
+            generer_quad("label", "", "", $<str>9);
+        }
+;
 
-    | IF '(' condition ')'
-    {
-        char *lelse = newLabel();
-        generer_quad("ifFalse", $3.place, "", lelse);
-        $<str>$ = lelse;
-    }
-    '{' instructions '}'
-    {
-        char *lend = newLabel();
-        generer_quad("goto", "", "", lend);
-        generer_quad("label", "", "", $<str>3);
-        $<str>$ = lend;
-    }
-    ELSE '{' instructions '}'
-    {
-        generer_quad("label", "", "", $<str>7);
-    }
+/* ── partie ELSE optionnelle (pas de conflit car ELSE est un token distinct) ── */
+partie_else:
+    /* vide */
+    | ELSE '{' instructions '}'
 ;
 
 /* ════════════════════════════════════════
@@ -425,7 +438,7 @@ InstructionWhile:
      goto _ _ Ldebut
      label _ _ Lfin
    ════════════════════════════════════════ */
-
+   
 InstructionFor:
     FOR '(' IDF ':' INT_CONST ':' INT_CONST ':' INT_CONST ')'
         {

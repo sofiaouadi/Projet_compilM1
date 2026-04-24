@@ -106,18 +106,18 @@ int getTaille(char *nom) {
    AFFICHAGE
    ───────────────────────────────────────── */
 void afficherTable() {
-    printf("\n╔══════════════════════════════════════════════════════╗\n");
-    printf(  "║              TABLE DES SYMBOLES                     ║\n");
-    printf(  "╠═══════════╦═════════╦═══════╦══════╦═══════╦═══════╣\n");
-    printf(  "║ Nom       ║ Type    ║ Const ║ Init ║ Tab.  ║ Taille║\n");
-    printf(  "╠═══════════╬═════════╬═══════╬══════╬═══════╬═══════╣\n");
+    printf("\n-----------------------------------------------------------\n");
+    printf(  "|              TABLE DES SYMBOLES                     |\n");
+    printf(  "-----------------------------------------------------------\n");
+    printf(  "| Nom       | Type    | Const | Init  | Tab.  | Taille|\n");
+    printf(  "-----------------------------------------------------------\n");
     for (int i = 0; i < taille; i++) {
-        printf("║ %-9s ║ %-7s ║  %3d  ║  %3d ║  %3d  ║  %4d ║\n",
+        printf("| %-9s | %-7s |  %3d  |  %3d |  %3d  |  %4d |\n",
                table[i].nom, table[i].type,
                table[i].isConst, table[i].initialisee,
                table[i].isTableau, table[i].taille);
     }
-    printf(  "╚═══════════╩═════════╩═══════╩══════╩═══════╩═══════╝\n");
+    printf(  "-----------------------------------------------------------\n");
 }
 
 /* ─────────────────────────────────────────
@@ -126,8 +126,15 @@ void afficherTable() {
    ───────────────────────────────────────── */
 int compatible(char *t1, char *t2) {
     if (!t1 || !t2) return 0;
-    if (strcmp(t1, t2) == 0)                                       return 1;
-    if (strcmp(t1,"FLOAT")==0   && strcmp(t2,"INTEGER")==0)        return 1;
-    if (strcmp(t1,"INTEGER")==0 && strcmp(t2,"FLOAT")==0)          return 1;
+
+    /* même type */
+    if (strcmp(t1, t2) == 0)
+        return 1;
+
+    /* autoriser seulement INTEGER -> FLOAT */
+    if (strcmp(t1, "FLOAT") == 0 && strcmp(t2, "INTEGER") == 0)
+        return 1;
+
+    /* REFUSER FLOAT -> INTEGER */
     return 0;
 }

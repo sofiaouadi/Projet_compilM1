@@ -143,7 +143,7 @@ SIGNED_FLOAT \([+-][0-9]+"."[0-9]+\)
 }
 
  /* identificateur trop long (> 8 caractères) */
-[a-zA-Z][a-zA-Z0-9_]{8,} {
+[a-zA-Z][a-zA-Z0-9_]{8} {
     printf("Erreur lexicale ligne %d, col %d : identificateur trop long \"%s\" (max 8 car.)\n",
            ligne, colonne, yytext);
     colonne += yyleng;
