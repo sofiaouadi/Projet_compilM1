@@ -74,22 +74,20 @@
 #include <stdlib.h>
 #include <string.h>
 #include "symtable.h"
+#include "quad.h"
 
-//#define YYDEBUG 1
+extern int yylex();
+void yyerror(const char *s);
 
-extern int yylex();// déclaration de la fonction de lexing
-void yyerror(const char *s);// déclaration de la fonction de gestion des erreurs
-
-
-// On indique à Bison que 'ligne' est définie dans lex.yy.c
 extern int ligne;
+extern int colonne;
 
-char* current_type;// pour stocker le type courant lors des déclarations
-int current_const = 0;// 0 = variable, 1 = constante
+char *current_type  = NULL;   /* type courant (INTEGER / FLOAT) */
+int   current_const = 0;      /* 0 = variable, 1 = constante  */
 
 
 /* Line 189 of yacc.c  */
-#line 93 "minialgo.tab.c"
+#line 91 "minialgo.tab.c"
 
 /* Enabling traces.  */
 #ifndef YYDEBUG
@@ -134,11 +132,11 @@ int current_const = 0;// 0 = variable, 1 = constante
      NEQ = 273,
      GE = 274,
      LE = 275,
-     IDF = 276,
-     INT_CONST = 277,
-     FLOAT_CONST = 278,
-     TO = 279,
-     DO = 280
+     AND = 276,
+     OR = 277,
+     IDF = 278,
+     INT_CONST = 279,
+     FLOAT_CONST = 280
    };
 #endif
 
@@ -149,16 +147,20 @@ typedef union YYSTYPE
 {
 
 /* Line 214 of yacc.c  */
-#line 20 "minialgo.y"
+#line 21 "minialgo.y"
 
-    int ival;
+    int   ival;
     float fval;
-    char* str;
+    char *str;
+    struct {
+        char *type;    /* "INTEGER" ou "FLOAT" */
+        char *place;   /* T0, T1 … ou nom de variable */
+    } expr;
 
 
 
 /* Line 214 of yacc.c  */
-#line 162 "minialgo.tab.c"
+#line 164 "minialgo.tab.c"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
@@ -170,7 +172,7 @@ typedef union YYSTYPE
 
 
 /* Line 264 of yacc.c  */
-#line 174 "minialgo.tab.c"
+#line 176 "minialgo.tab.c"
 
 #ifdef short
 # undef short
@@ -385,16 +387,16 @@ union yyalloc
 /* YYFINAL -- State number of the termination state.  */
 #define YYFINAL  4
 /* YYLAST -- Last index in YYTABLE.  */
-#define YYLAST   142
+#define YYLAST   188
 
 /* YYNTOKENS -- Number of terminals.  */
-#define YYNTOKENS  40
+#define YYNTOKENS  42
 /* YYNNTS -- Number of nonterminals.  */
-#define YYNNTS  17
+#define YYNNTS  23
 /* YYNRULES -- Number of rules.  */
-#define YYNRULES  43
+#define YYNRULES  55
 /* YYNRULES -- Number of states.  */
-#define YYNSTATES  106
+#define YYNSTATES  136
 
 /* YYTRANSLATE(YYLEX) -- Bison symbol number corresponding to YYLEX.  */
 #define YYUNDEFTOK  2
@@ -409,16 +411,16 @@ static const yytype_uint8 yytranslate[] =
        0,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
-       2,     2,     2,    39,     2,     2,     2,     2,     2,     2,
-      33,    34,    28,    26,    32,    27,     2,    29,     2,     2,
-       2,     2,     2,     2,     2,     2,     2,     2,    30,    31,
-      38,     2,    37,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,    26,     2,     2,     2,     2,     2,     2,
+      38,    39,    31,    29,    35,    30,     2,    32,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,    33,    34,
+      27,     2,    28,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,    36,     2,    37,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
-       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
-       2,     2,     2,    35,     2,    36,     2,     2,     2,     2,
+       2,     2,     2,    40,     2,    41,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
@@ -442,44 +444,50 @@ static const yytype_uint8 yytranslate[] =
    YYRHS.  */
 static const yytype_uint8 yyprhs[] =
 {
-       0,     0,     3,    10,    14,    17,    18,    23,    25,    27,
-      29,    31,    35,    41,    45,    51,    57,    58,    61,    63,
-      65,    67,    69,    71,    73,    78,    80,    82,    84,    88,
-      92,    96,   100,   104,   118,   126,   134,   146,   150,   154,
-     158,   162,   166,   169
+       0,     0,     3,    10,    14,    17,    19,    24,    26,    28,
+      30,    34,    40,    42,    46,    51,    57,    63,    64,    67,
+      69,    71,    73,    75,    77,    79,    84,    92,    94,    96,
+      98,   103,   107,   111,   115,   119,   123,   127,   131,   135,
+     139,   143,   147,   150,   154,   158,   159,   168,   169,   170,
+     184,   185,   186,   196,   197,   212
 };
 
 /* YYRHS -- A `-1'-separated list of the rules' RHS.  */
 static const yytype_int8 yyrhs[] =
 {
-      41,     0,    -1,     3,    21,    42,     6,    48,     7,    -1,
-       4,    43,     5,    -1,    43,    44,    -1,    -1,    45,    30,
-      46,    31,    -1,    47,    -1,     8,    -1,     9,    -1,    21,
-      -1,    46,    32,    21,    -1,    46,    32,    21,    16,    51,
-      -1,    21,    16,    51,    -1,    10,    21,    16,    22,    31,
-      -1,    10,    21,    16,    23,    31,    -1,    -1,    48,    49,
-      -1,    50,    -1,    47,    -1,    52,    -1,    53,    -1,    54,
-      -1,    56,    -1,    21,    16,    51,    31,    -1,    22,    -1,
-      23,    -1,    21,    -1,    51,    26,    51,    -1,    51,    27,
-      51,    -1,    51,    28,    51,    -1,    51,    29,    51,    -1,
-      33,    51,    34,    -1,    14,    33,    21,    30,    22,    30,
-      22,    30,    22,    34,    35,    48,    36,    -1,    13,    33,
-      55,    34,    35,    48,    36,    -1,    11,    33,    55,    34,
-      35,    48,    36,    -1,    11,    33,    55,    34,    35,    48,
-      36,    12,    35,    48,    36,    -1,    51,    37,    51,    -1,
-      51,    38,    51,    -1,    51,    17,    51,    -1,    51,    20,
-      51,    -1,    51,    19,    51,    -1,    39,    51,    -1,    15,
-      51,    31,    -1
+      43,     0,    -1,     3,    23,    44,     6,    50,     7,    -1,
+       4,    45,     5,    -1,    45,    46,    -1,    46,    -1,    47,
+      33,    48,    34,    -1,    49,    -1,     8,    -1,     9,    -1,
+      48,    35,    23,    -1,    48,    35,    23,    16,    53,    -1,
+      23,    -1,    23,    16,    53,    -1,    23,    36,    24,    37,
+      -1,    10,    23,    16,    24,    34,    -1,    10,    23,    16,
+      25,    34,    -1,    -1,    50,    51,    -1,    52,    -1,    49,
+      -1,    62,    -1,    59,    -1,    55,    -1,    64,    -1,    23,
+      16,    53,    34,    -1,    23,    36,    53,    37,    16,    53,
+      34,    -1,    24,    -1,    25,    -1,    23,    -1,    23,    36,
+      53,    37,    -1,    53,    29,    53,    -1,    53,    30,    53,
+      -1,    53,    31,    53,    -1,    53,    32,    53,    -1,    38,
+      53,    39,    -1,    53,    28,    53,    -1,    53,    27,    53,
+      -1,    53,    17,    53,    -1,    53,    18,    53,    -1,    53,
+      19,    53,    -1,    53,    20,    53,    -1,    26,    53,    -1,
+      54,    21,    54,    -1,    54,    22,    54,    -1,    -1,    11,
+      38,    54,    39,    56,    40,    50,    41,    -1,    -1,    -1,
+      11,    38,    54,    39,    57,    40,    50,    41,    58,    12,
+      40,    50,    41,    -1,    -1,    -1,    13,    60,    38,    54,
+      39,    61,    40,    50,    41,    -1,    -1,    14,    38,    23,
+      33,    24,    33,    24,    33,    24,    39,    63,    40,    50,
+      41,    -1,    15,    38,    53,    39,    34,    -1
 };
 
 /* YYRLINE[YYN] -- source line where rule number YYN was defined.  */
 static const yytype_uint16 yyrline[] =
 {
-       0,    43,    43,    53,    57,    58,    62,    63,    66,    67,
-      71,    76,    81,    91,   111,   119,   131,   133,   136,   137,
-     138,   139,   140,   141,   152,   173,   174,   176,   186,   197,
-     208,   219,   227,   234,   264,   273,   279,   288,   289,   290,
-     291,   292,   293,   297
+       0,    66,    66,    82,    86,    87,    91,    92,    96,    97,
+     102,   105,   114,   117,   126,   136,   146,   161,   163,   167,
+     168,   169,   170,   171,   172,   179,   193,   211,   218,   225,
+     234,   245,   253,   261,   269,   280,   289,   294,   299,   304,
+     309,   314,   319,   324,   329,   352,   351,   363,   369,   362,
+     395,   401,   394,   431,   430,   502
 };
 #endif
 
@@ -490,13 +498,13 @@ static const char *const yytname[] =
 {
   "$end", "error", "$undefined", "PROGRAM", "DECL", "ENDDECL", "BEGIN_T",
   "END_T", "INTEGER", "FLOAT_T", "CONST", "IF", "ELSE", "WHILE", "FOR",
-  "WRITE", "EQL", "EQ", "NEQ", "GE", "LE", "IDF", "INT_CONST",
-  "FLOAT_CONST", "TO", "DO", "'+'", "'-'", "'*'", "'/'", "':'", "';'",
-  "','", "'('", "')'", "'{'", "'}'", "'>'", "'<'", "'!'", "$accept",
+  "WRITE", "EQL", "EQ", "NEQ", "GE", "LE", "AND", "OR", "IDF", "INT_CONST",
+  "FLOAT_CONST", "'!'", "'<'", "'>'", "'+'", "'-'", "'*'", "'/'", "':'",
+  "';'", "','", "'['", "']'", "'('", "')'", "'{'", "'}'", "$accept",
   "programme", "declarations", "liste_declarations", "declaration", "type",
   "liste_id", "declaration_constante", "instructions", "instruction",
-  "affectation", "expression", "InstructionFor", "InstructionWhile",
-  "InstructionIf", "condition", "write", 0
+  "affectation", "expression", "condition", "InstructionIf", "@1", "@2",
+  "@3", "InstructionWhile", "@4", "@5", "InstructionFor", "@6", "write", 0
 };
 #endif
 
@@ -507,29 +515,32 @@ static const yytype_uint16 yytoknum[] =
 {
        0,   256,   257,   258,   259,   260,   261,   262,   263,   264,
      265,   266,   267,   268,   269,   270,   271,   272,   273,   274,
-     275,   276,   277,   278,   279,   280,    43,    45,    42,    47,
-      58,    59,    44,    40,    41,   123,   125,    62,    60,    33
+     275,   276,   277,   278,   279,   280,    33,    60,    62,    43,
+      45,    42,    47,    58,    59,    44,    91,    93,    40,    41,
+     123,   125
 };
 # endif
 
 /* YYR1[YYN] -- Symbol number of symbol that rule YYN derives.  */
 static const yytype_uint8 yyr1[] =
 {
-       0,    40,    41,    42,    43,    43,    44,    44,    45,    45,
-      46,    46,    46,    46,    47,    47,    48,    48,    49,    49,
-      49,    49,    49,    49,    50,    51,    51,    51,    51,    51,
-      51,    51,    51,    52,    53,    54,    54,    55,    55,    55,
-      55,    55,    55,    56
+       0,    42,    43,    44,    45,    45,    46,    46,    47,    47,
+      48,    48,    48,    48,    48,    49,    49,    50,    50,    51,
+      51,    51,    51,    51,    51,    52,    52,    53,    53,    53,
+      53,    53,    53,    53,    53,    53,    54,    54,    54,    54,
+      54,    54,    54,    54,    54,    56,    55,    57,    58,    55,
+      60,    61,    59,    63,    62,    64
 };
 
 /* YYR2[YYN] -- Number of symbols composing right hand side of rule YYN.  */
 static const yytype_uint8 yyr2[] =
 {
-       0,     2,     6,     3,     2,     0,     4,     1,     1,     1,
-       1,     3,     5,     3,     5,     5,     0,     2,     1,     1,
-       1,     1,     1,     1,     4,     1,     1,     1,     3,     3,
-       3,     3,     3,    13,     7,     7,    11,     3,     3,     3,
-       3,     3,     2,     3
+       0,     2,     6,     3,     2,     1,     4,     1,     1,     1,
+       3,     5,     1,     3,     4,     5,     5,     0,     2,     1,
+       1,     1,     1,     1,     1,     4,     7,     1,     1,     1,
+       4,     3,     3,     3,     3,     3,     3,     3,     3,     3,
+       3,     3,     2,     3,     3,     0,     8,     0,     0,    13,
+       0,     0,     9,     0,    14,     5
 };
 
 /* YYDEFACT[STATE-NAME] -- Default rule to reduce with in state
@@ -537,49 +548,57 @@ static const yytype_uint8 yyr2[] =
    means the default is an error.  */
 static const yytype_uint8 yydefact[] =
 {
-       0,     0,     0,     0,     1,     5,     0,     0,    16,     3,
-       8,     9,     0,     4,     0,     7,     0,     0,     0,     2,
-       0,     0,     0,     0,     0,    19,    17,    18,    20,    21,
-      22,    23,     0,    10,     0,     0,     0,     0,    27,    25,
-      26,     0,     0,     0,     0,     0,     0,     6,     0,     0,
-       0,     0,     0,     0,     0,     0,     0,     0,     0,    43,
-       0,    14,    15,    13,    11,    42,     0,     0,     0,     0,
-       0,     0,     0,     0,    32,    28,    29,    30,    31,    24,
-       0,    39,    41,    40,    37,    38,    16,    16,     0,    12,
-       0,     0,     0,    35,    34,     0,     0,     0,    16,     0,
-       0,     0,    36,    16,     0,    33
+       0,     0,     0,     0,     1,     0,     0,     8,     9,     0,
+       0,     5,     0,     7,    17,     0,     3,     4,     0,     0,
+       0,    12,     0,     2,     0,    50,     0,     0,     0,    20,
+      18,    19,    23,    22,    21,    24,     0,     0,     0,     0,
+       6,     0,     0,     0,     0,     0,     0,     0,    15,    16,
+      29,    27,    28,     0,    13,     0,    10,     0,     0,     0,
+       0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
+       0,    14,     0,    42,     0,     0,     0,     0,     0,     0,
+       0,     0,    45,     0,     0,     0,    25,     0,     0,    35,
+      31,    32,    33,    34,    11,    38,    39,    40,    41,    37,
+      36,    43,    44,     0,     0,    51,     0,    55,     0,    30,
+      17,    17,     0,     0,     0,     0,     0,    17,     0,    26,
+      46,    48,     0,     0,     0,    52,     0,     0,    53,    17,
+       0,     0,    17,    49,     0,    54
 };
 
 /* YYDEFGOTO[NTERM-NUM].  */
-static const yytype_int8 yydefgoto[] =
+static const yytype_int16 yydefgoto[] =
 {
-      -1,     2,     6,     7,    13,    14,    34,    25,    16,    26,
-      27,    50,    28,    29,    30,    51,    31
+      -1,     2,     6,    10,    11,    12,    22,    29,    19,    30,
+      31,    58,    59,    32,   103,   104,   124,    33,    43,   112,
+      34,   130,    35
 };
 
 /* YYPACT[STATE-NUM] -- Index in YYTABLE of the portion describing
    STATE-NUM.  */
-#define YYPACT_NINF -32
-static const yytype_int8 yypact[] =
+#define YYPACT_NINF -47
+static const yytype_int16 yypact[] =
 {
-      19,   -18,    24,    35,   -32,   -32,    52,   101,   -32,   -32,
-     -32,   -32,    30,   -32,    47,   -32,    71,    67,    79,   -32,
-      58,    75,    80,    43,    96,   -32,   -32,   -32,   -32,   -32,
-     -32,   -32,    -6,    98,    62,   -14,   -14,    94,   -32,   -32,
-     -32,    43,    70,    43,    85,    86,    43,   -32,    97,    43,
-      42,    87,    88,    89,    61,    43,    43,    43,    43,   -32,
-      76,   -32,   -32,     2,   104,     2,    43,    43,    43,    43,
-      43,    90,    91,   102,   -32,    45,    45,   -32,   -32,   -32,
-      43,     2,     2,     2,     2,     2,   -32,   -32,    93,     2,
-      -9,     0,   105,   116,   -32,    99,    95,   109,   -32,   100,
-      27,   103,   -32,   -32,    39,   -32
+       7,   -22,    35,     8,   -47,    95,    66,   -47,   -47,    62,
+     146,   -47,    74,   -47,   -47,    75,   -47,   -47,    72,    83,
+      52,   -14,    47,   -47,    70,   -47,   115,   123,    12,   -47,
+     -47,   -47,   -47,   -47,   -47,   -47,    99,   101,    96,   107,
+     -47,   139,    92,   125,   141,    96,    96,    96,   -47,   -47,
+     129,   -47,   -47,    96,   128,   130,   150,    96,    82,    45,
+      92,   135,    93,   112,   -26,    96,    97,    96,    96,    96,
+      96,   -47,    96,   128,    96,    96,    96,    96,    96,    96,
+      92,    92,   -47,    53,   145,   136,   -47,   155,   108,   -47,
+      57,    57,   -47,   -47,   128,   128,   128,   128,   128,   128,
+     128,   -47,   151,   133,   134,   -47,   142,   -47,    96,   -47,
+     -47,   -47,   137,   152,   118,     3,    10,   -47,   147,   -47,
+     -47,   -47,    32,   154,   167,   -47,   143,   144,   -47,   -47,
+     148,    39,   -47,   -47,    46,   -47
 };
 
 /* YYPGOTO[NTERM-NUM].  */
-static const yytype_int8 yypgoto[] =
+static const yytype_int16 yypgoto[] =
 {
-     -32,   -32,   -32,   -32,   -32,   -32,   -32,   125,   -31,   -32,
-     -32,   -23,   -32,   -32,   -32,   106,   -32
+     -47,   -47,   -47,   -47,   171,   -47,   -47,    58,   -46,   -47,
+     -47,   -38,    -2,   -47,   -47,   -47,   -47,   -47,   -47,   -47,
+     -47,   -47,   -47
 };
 
 /* YYTABLE[YYPACT[STATE-NUM]].  What to do in state STATE-NUM.  If
@@ -589,57 +608,68 @@ static const yytype_int8 yypgoto[] =
 #define YYTABLE_NINF -1
 static const yytype_uint8 yytable[] =
 {
-      42,    12,    20,     3,    21,    22,    23,    38,    39,    40,
-      12,    20,    24,    21,    22,    23,    44,    45,    54,    41,
-      60,    24,     1,    63,     4,    49,    65,    93,    55,    56,
-      57,    58,    75,    76,    77,    78,    94,    12,    20,     5,
-      21,    22,    23,    81,    82,    83,    84,    85,    24,    12,
-      20,    17,    21,    22,    23,    90,    91,    89,     8,    66,
-      24,    67,    68,   102,    38,    39,    40,   100,    55,    56,
-      57,    58,   104,    57,    58,   105,    41,    18,    19,    69,
-      70,    12,    20,    32,    21,    22,    23,    55,    56,    57,
-      58,    35,    24,    47,    48,    74,    55,    56,    57,    58,
-      33,    59,    55,    56,    57,    58,     9,    79,    36,    10,
-      11,    12,    43,    37,    46,    53,    61,    62,    64,    73,
-      80,    71,    72,    92,    88,    86,    87,    95,    96,    97,
-      98,    99,    15,     0,   101,     0,     0,     0,   103,     0,
-       0,     0,    52
+      54,     3,    38,    67,    68,    69,    70,    62,    63,    64,
+       1,    87,     5,     9,    24,    66,    25,    26,    27,    73,
+       9,    24,    39,    25,    26,    27,    28,    88,    46,    90,
+      91,    92,    93,    28,    94,     4,    95,    96,    97,    98,
+      99,   100,     9,    24,   120,    25,    26,    27,    47,     9,
+      24,   121,    25,    26,    27,    28,     9,    24,    83,    25,
+      26,    27,    28,    13,   115,   116,    80,    81,    13,    28,
+     114,   122,    14,   125,    80,    81,    36,    37,   101,   102,
+     133,    40,    41,   131,    82,    15,   134,   135,    69,    70,
+      23,    20,   105,     9,    24,    21,    25,    26,    27,    74,
+      75,    76,    77,     7,     8,     9,    28,    18,    42,    78,
+      79,    67,    68,    69,    70,    50,    51,    52,    57,    50,
+      51,    52,    67,    68,    69,    70,    67,    68,    69,    70,
+      53,    55,    85,    48,    53,    49,    89,    67,    68,    69,
+      70,    67,    68,    69,    70,   109,    86,    67,    68,    69,
+      70,    16,   119,    44,     7,     8,     9,    67,    68,    69,
+      70,    45,    56,    60,    61,    65,    72,    71,    84,   106,
+     107,   108,    80,   110,   111,   113,   118,   117,   126,   127,
+     123,    17,   128,     0,   129,     0,     0,     0,   132
 };
 
-static const yytype_int8 yycheck[] =
+static const yytype_int16 yycheck[] =
 {
-      23,    10,    11,    21,    13,    14,    15,    21,    22,    23,
-      10,    11,    21,    13,    14,    15,    22,    23,    41,    33,
-      43,    21,     3,    46,     0,    39,    49,    36,    26,    27,
-      28,    29,    55,    56,    57,    58,    36,    10,    11,     4,
-      13,    14,    15,    66,    67,    68,    69,    70,    21,    10,
-      11,    21,    13,    14,    15,    86,    87,    80,     6,    17,
-      21,    19,    20,    36,    21,    22,    23,    98,    26,    27,
-      28,    29,   103,    28,    29,    36,    33,    30,     7,    37,
-      38,    10,    11,    16,    13,    14,    15,    26,    27,    28,
-      29,    33,    21,    31,    32,    34,    26,    27,    28,    29,
-      21,    31,    26,    27,    28,    29,     5,    31,    33,     8,
-       9,    10,    16,    33,    16,    21,    31,    31,    21,    30,
-      16,    34,    34,    30,    22,    35,    35,    22,    12,    30,
-      35,    22,     7,    -1,    34,    -1,    -1,    -1,    35,    -1,
-      -1,    -1,    36
+      38,    23,    16,    29,    30,    31,    32,    45,    46,    47,
+       3,    37,     4,    10,    11,    53,    13,    14,    15,    57,
+      10,    11,    36,    13,    14,    15,    23,    65,    16,    67,
+      68,    69,    70,    23,    72,     0,    74,    75,    76,    77,
+      78,    79,    10,    11,    41,    13,    14,    15,    36,    10,
+      11,    41,    13,    14,    15,    23,    10,    11,    60,    13,
+      14,    15,    23,     5,   110,   111,    21,    22,    10,    23,
+     108,   117,     6,    41,    21,    22,    24,    25,    80,    81,
+      41,    34,    35,   129,    39,    23,   132,    41,    31,    32,
+       7,    16,    39,    10,    11,    23,    13,    14,    15,    17,
+      18,    19,    20,     8,     9,    10,    23,    33,    38,    27,
+      28,    29,    30,    31,    32,    23,    24,    25,    26,    23,
+      24,    25,    29,    30,    31,    32,    29,    30,    31,    32,
+      38,    24,    39,    34,    38,    34,    39,    29,    30,    31,
+      32,    29,    30,    31,    32,    37,    34,    29,    30,    31,
+      32,     5,    34,    38,     8,     9,    10,    29,    30,    31,
+      32,    38,    23,    38,    23,    36,    16,    37,    33,    24,
+      34,    16,    21,    40,    40,    33,    24,    40,    24,    12,
+      33,    10,    39,    -1,    40,    -1,    -1,    -1,    40
 };
 
 /* YYSTOS[STATE-NUM] -- The (internal number of the) accessing
    symbol of state STATE-NUM.  */
 static const yytype_uint8 yystos[] =
 {
-       0,     3,    41,    21,     0,     4,    42,    43,     6,     5,
-       8,     9,    10,    44,    45,    47,    48,    21,    30,     7,
-      11,    13,    14,    15,    21,    47,    49,    50,    52,    53,
-      54,    56,    16,    21,    46,    33,    33,    33,    21,    22,
-      23,    33,    51,    16,    22,    23,    16,    31,    32,    39,
-      51,    55,    55,    21,    51,    26,    27,    28,    29,    31,
-      51,    31,    31,    51,    21,    51,    17,    19,    20,    37,
-      38,    34,    34,    30,    34,    51,    51,    51,    51,    31,
-      16,    51,    51,    51,    51,    51,    35,    35,    22,    51,
-      48,    48,    30,    36,    36,    22,    12,    30,    35,    22,
-      48,    34,    36,    35,    48,    36
+       0,     3,    43,    23,     0,     4,    44,     8,     9,    10,
+      45,    46,    47,    49,     6,    23,     5,    46,    33,    50,
+      16,    23,    48,     7,    11,    13,    14,    15,    23,    49,
+      51,    52,    55,    59,    62,    64,    24,    25,    16,    36,
+      34,    35,    38,    60,    38,    38,    16,    36,    34,    34,
+      23,    24,    25,    38,    53,    24,    23,    26,    53,    54,
+      38,    23,    53,    53,    53,    36,    53,    29,    30,    31,
+      32,    37,    16,    53,    17,    18,    19,    20,    27,    28,
+      21,    22,    39,    54,    33,    39,    34,    37,    53,    39,
+      53,    53,    53,    53,    53,    53,    53,    53,    53,    53,
+      53,    54,    54,    56,    57,    39,    24,    34,    16,    37,
+      40,    40,    61,    33,    53,    50,    50,    40,    24,    34,
+      41,    41,    50,    33,    58,    41,    24,    12,    39,    40,
+      63,    50,    40,    41,    50,    41
 };
 
 #define yyerrok		(yyerrstatus = 0)
@@ -1453,125 +1483,120 @@ yyreduce:
         case 2:
 
 /* Line 1455 of yacc.c  */
-#line 44 "minialgo.y"
+#line 67 "minialgo.y"
     {
-        
-        printf(" :) Analyse terminee avec succes ! BRAVO !!!\n");
+        afficherTable();
+        afficher_quads();
+        optimiser_quads();
+        printf("\n=== APRES OPTIMISATION ===\n");
+        afficher_quads();
+        generer_asm_8086("output.asm");
+        printf("\nAnalyse et compilation terminees avec succes !\n");
     ;}
     break;
 
   case 8:
 
 /* Line 1455 of yacc.c  */
-#line 66 "minialgo.y"
+#line 96 "minialgo.y"
     { current_type = "INTEGER"; current_const = 0; ;}
     break;
 
   case 9:
 
 /* Line 1455 of yacc.c  */
-#line 67 "minialgo.y"
-    { current_type = "FLOAT"; current_const = 0; ;}
+#line 97 "minialgo.y"
+    { current_type = "FLOAT";   current_const = 0; ;}
     break;
 
   case 10:
 
 /* Line 1455 of yacc.c  */
-#line 71 "minialgo.y"
+#line 102 "minialgo.y"
     {
-        inserer((yyvsp[(1) - (1)].str), current_type, current_const);
+        inserer((yyvsp[(3) - (3)].str), current_type, current_const);
     ;}
     break;
 
   case 11:
 
 /* Line 1455 of yacc.c  */
-#line 76 "minialgo.y"
-    { 
-        inserer((yyvsp[(3) - (3)].str), current_type, current_const); 
+#line 105 "minialgo.y"
+    {
+        inserer((yyvsp[(3) - (5)].str), current_type, current_const);
+        setInitialisee((yyvsp[(3) - (5)].str));
+        if (!compatible(current_type, (yyvsp[(5) - (5)].expr).type))
+            printf("Erreur semantique ligne %d : incompatibilite de type pour '%s' (%s attendu, %s recu)\n",
+                   ligne, (yyvsp[(3) - (5)].str), current_type, (yyvsp[(5) - (5)].expr).type);
+        else
+            generer_quad("=", (yyvsp[(5) - (5)].expr).place, "", (yyvsp[(3) - (5)].str));
     ;}
     break;
 
   case 12:
 
 /* Line 1455 of yacc.c  */
-#line 81 "minialgo.y"
+#line 114 "minialgo.y"
     {
-        inserer((yyvsp[(3) - (5)].str), current_type, current_const);
-        setInitialisee((yyvsp[(3) - (5)].str));
-        
-        if (!compatible(current_type, (yyvsp[(5) - (5)].str))) {
-            printf(" Erreur ligne %d : Incompatibilité de type lors de l'initialisation de %s (%s attendu, %s reçu)\n", 
-                    ligne, (yyvsp[(3) - (5)].str), current_type, (yyvsp[(5) - (5)].str));
-        }
+        inserer((yyvsp[(1) - (1)].str), current_type, current_const);
     ;}
     break;
 
   case 13:
 
 /* Line 1455 of yacc.c  */
-#line 91 "minialgo.y"
-    { 
-        // 1. Insertion dans la table des symboles
+#line 117 "minialgo.y"
+    {
         inserer((yyvsp[(1) - (3)].str), current_type, current_const);
-        
-        // 2. Marquage comme initialisée
         setInitialisee((yyvsp[(1) - (3)].str));
-        
-        // 3. Vérification de la compatibilité des types
-        // current_type est le type à gauche, $3 est le type de l'expression à droite
-        if (!compatible(current_type, (yyvsp[(3) - (3)].str))) {
-            printf(" Erreur ligne %d : Incompatibilité de type lors de l'initialisation de %s (%s attendu, %s reçu)\n", 
-                    ligne, (yyvsp[(1) - (3)].str), current_type, (yyvsp[(3) - (3)].str));
-        }
+        if (!compatible(current_type, (yyvsp[(3) - (3)].expr).type))
+            printf("Erreur semantique ligne %d : incompatibilite de type pour '%s' (%s attendu, %s recu)\n",
+                   ligne, (yyvsp[(1) - (3)].str), current_type, (yyvsp[(3) - (3)].expr).type);
+        else
+            generer_quad("=", (yyvsp[(3) - (3)].expr).place, "", (yyvsp[(1) - (3)].str));
     ;}
     break;
 
   case 14:
 
 /* Line 1455 of yacc.c  */
-#line 111 "minialgo.y"
+#line 126 "minialgo.y"
     {
-        if (existe((yyvsp[(2) - (5)].str))) {
-            printf(" Erreur sémantique ligne %d : double déclaration de %s\n", ligne, (yyvsp[(2) - (5)].str));
-        } else {
-            inserer((yyvsp[(2) - (5)].str), "INTEGER", 1); // 1 car c'est une constante
-            setInitialisee((yyvsp[(2) - (5)].str));        // Une constante est considérée initialisée dès sa déclaration
-        }
+        if ((yyvsp[(3) - (4)].ival) <= 0)
+            printf("Erreur semantique ligne %d : taille de tableau invalide pour '%s'\n", ligne, (yyvsp[(1) - (4)].str));
+        else
+            inserer_tableau((yyvsp[(1) - (4)].str), current_type, (yyvsp[(3) - (4)].ival));
     ;}
     break;
 
   case 15:
 
 /* Line 1455 of yacc.c  */
-#line 119 "minialgo.y"
+#line 136 "minialgo.y"
     {
-        if (existe((yyvsp[(2) - (5)].str))) {
-            printf(" Erreur sémantique ligne %d : double déclaration de %s\n", ligne, (yyvsp[(2) - (5)].str));
-        } else {
-            inserer((yyvsp[(2) - (5)].str), "FLOAT", 1);
+        if (existe((yyvsp[(2) - (5)].str)))
+            printf("Erreur semantique ligne %d : double declaration de '%s'\n", ligne, (yyvsp[(2) - (5)].str));
+        else {
+            inserer((yyvsp[(2) - (5)].str), "INTEGER", 1);
             setInitialisee((yyvsp[(2) - (5)].str));
+            char buf[30]; sprintf(buf, "%d", (yyvsp[(4) - (5)].ival));
+            generer_quad("=", buf, "", (yyvsp[(2) - (5)].str));
         }
     ;}
     break;
 
-  case 24:
+  case 16:
 
 /* Line 1455 of yacc.c  */
-#line 153 "minialgo.y"
+#line 146 "minialgo.y"
     {
-        if (!existe((yyvsp[(1) - (4)].str))) {
-            printf(" ERREUR SEMANTIQUE : %s non déclaré\n", (yyvsp[(1) - (4)].str));
-        } else {
-            char* type_gauche = getType((yyvsp[(1) - (4)].str));
-            char* type_droite = (yyvsp[(3) - (4)].str);
-
-            // Supprimez le strcmp strict et gardez uniquement compatible()
-            if (!compatible(type_gauche, type_droite)) {
-                printf("ERREUR SEMANTIQUE :  ligne %d : incompatibilité entre %s et %s\n", ligne, type_gauche, type_droite);
-            }
-
-            setInitialisee((yyvsp[(1) - (4)].str));
+        if (existe((yyvsp[(2) - (5)].str)))
+            printf("Erreur semantique ligne %d : double declaration de '%s'\n", ligne, (yyvsp[(2) - (5)].str));
+        else {
+            inserer((yyvsp[(2) - (5)].str), "FLOAT", 1);
+            setInitialisee((yyvsp[(2) - (5)].str));
+            char buf[30]; sprintf(buf, "%f", (yyvsp[(4) - (5)].fval));
+            generer_quad("=", buf, "", (yyvsp[(2) - (5)].str));
         }
     ;}
     break;
@@ -1579,224 +1604,439 @@ yyreduce:
   case 25:
 
 /* Line 1455 of yacc.c  */
-#line 173 "minialgo.y"
-    { (yyval.str) = "INTEGER"; ;}
+#line 179 "minialgo.y"
+    {
+        if (!existe((yyvsp[(1) - (4)].str)))
+            printf("Erreur semantique ligne %d : '%s' non declare\n", ligne, (yyvsp[(1) - (4)].str));
+        else if (isConstante((yyvsp[(1) - (4)].str)))
+            printf("Erreur semantique ligne %d : '%s' est une constante, affectation interdite\n", ligne, (yyvsp[(1) - (4)].str));
+        else {
+            if (!compatible(getType((yyvsp[(1) - (4)].str)), (yyvsp[(3) - (4)].expr).type))
+                printf("Erreur semantique ligne %d : incompatibilite de type (%s = %s)\n",
+                       ligne, getType((yyvsp[(1) - (4)].str)), (yyvsp[(3) - (4)].expr).type);
+            generer_quad("=", (yyvsp[(3) - (4)].expr).place, "", (yyvsp[(1) - (4)].str));
+            setInitialisee((yyvsp[(1) - (4)].str));
+        }
+    ;}
     break;
 
   case 26:
 
 /* Line 1455 of yacc.c  */
-#line 174 "minialgo.y"
-    { (yyval.str) = "FLOAT"; ;}
+#line 193 "minialgo.y"
+    {
+        if (!existe((yyvsp[(1) - (7)].str)))
+            printf("Erreur semantique ligne %d : '%s' non declare\n", ligne, (yyvsp[(1) - (7)].str));
+        else if (!isTableau((yyvsp[(1) - (7)].str)))
+            printf("Erreur semantique ligne %d : '%s' n'est pas un tableau\n", ligne, (yyvsp[(1) - (7)].str));
+        else {
+            /* vérification d'indice si constante */
+            char res[40];
+            sprintf(res, "%s[%s]", (yyvsp[(1) - (7)].str), (yyvsp[(3) - (7)].expr).place);
+            generer_quad("=", (yyvsp[(6) - (7)].expr).place, "", res);
+        }
+    ;}
     break;
 
   case 27:
 
 /* Line 1455 of yacc.c  */
-#line 176 "minialgo.y"
+#line 211 "minialgo.y"
     {
-        if (!existe((yyvsp[(1) - (1)].str))) {
-            printf("❌ %s non déclaré\n", (yyvsp[(1) - (1)].str));
-        } else {
-            if (!estInitialisee((yyvsp[(1) - (1)].str))) {
-                printf("ERREUR SEMANTIQUE : La variable  ( %s ) est utilise sans initialisation !\n", (yyvsp[(1) - (1)].str));
-            }
-            (yyval.str) = getType((yyvsp[(1) - (1)].str));
-        }
+        char buf[30]; sprintf(buf, "%d", (yyvsp[(1) - (1)].ival));
+        char *t = newTemp();
+        generer_quad("=", buf, "", t);
+        (yyval.expr).type  = "INTEGER";
+        (yyval.expr).place = t;
     ;}
     break;
 
   case 28:
 
 /* Line 1455 of yacc.c  */
-#line 186 "minialgo.y"
+#line 218 "minialgo.y"
     {
-    if (!compatible((yyvsp[(1) - (3)].str), (yyvsp[(3) - (3)].str))) {
-        printf("❌ Type incompatible dans expression\n");
-    }
-
-    if (strcmp((yyvsp[(1) - (3)].str), "FLOAT") == 0 || strcmp((yyvsp[(3) - (3)].str), "FLOAT") == 0)
-        (yyval.str) = "FLOAT";
-    else
-        (yyval.str) = "INTEGER";
-;}
+        char buf[30]; sprintf(buf, "%f", (yyvsp[(1) - (1)].fval));
+        char *t = newTemp();
+        generer_quad("=", buf, "", t);
+        (yyval.expr).type  = "FLOAT";
+        (yyval.expr).place = t;
+    ;}
     break;
 
   case 29:
 
 /* Line 1455 of yacc.c  */
-#line 197 "minialgo.y"
+#line 225 "minialgo.y"
     {
-    if (!compatible((yyvsp[(1) - (3)].str), (yyvsp[(3) - (3)].str))) {
-        printf("❌ Type incompatible dans expression\n");
-    }
-
-    if (strcmp((yyvsp[(1) - (3)].str), "FLOAT") == 0 || strcmp((yyvsp[(3) - (3)].str), "FLOAT") == 0)
-        (yyval.str) = "FLOAT";
-    else
-        (yyval.str) = "INTEGER";
-;}
+        if (!existe((yyvsp[(1) - (1)].str)))
+            printf("Erreur semantique ligne %d : '%s' non declare\n", ligne, (yyvsp[(1) - (1)].str));
+        else if (!estInitialisee((yyvsp[(1) - (1)].str)))
+            printf("Avertissement ligne %d : '%s' utilisee sans initialisation\n", ligne, (yyvsp[(1) - (1)].str));
+        (yyval.expr).type  = existe((yyvsp[(1) - (1)].str)) ? getType((yyvsp[(1) - (1)].str)) : "INTEGER";
+        (yyval.expr).place = (yyvsp[(1) - (1)].str);
+    ;}
     break;
 
   case 30:
 
 /* Line 1455 of yacc.c  */
-#line 208 "minialgo.y"
+#line 234 "minialgo.y"
     {
-    if (!compatible((yyvsp[(1) - (3)].str), (yyvsp[(3) - (3)].str))) {
-        printf("❌ Type incompatible dans expression\n");
-    }
-
-    if (strcmp((yyvsp[(1) - (3)].str), "FLOAT") == 0 || strcmp((yyvsp[(3) - (3)].str), "FLOAT") == 0)
-        (yyval.str) = "FLOAT";
-    else
-        (yyval.str) = "INTEGER";
-;}
+        if (!existe((yyvsp[(1) - (4)].str)))
+            printf("Erreur semantique ligne %d : '%s' non declare\n", ligne, (yyvsp[(1) - (4)].str));
+        else if (!isTableau((yyvsp[(1) - (4)].str)))
+            printf("Erreur semantique ligne %d : '%s' n'est pas un tableau\n", ligne, (yyvsp[(1) - (4)].str));
+        char *t = newTemp();
+        char  src[40]; sprintf(src, "%s[%s]", (yyvsp[(1) - (4)].str), (yyvsp[(3) - (4)].expr).place);
+        generer_quad("=", src, "", t);
+        (yyval.expr).type  = existe((yyvsp[(1) - (4)].str)) ? getType((yyvsp[(1) - (4)].str)) : "INTEGER";
+        (yyval.expr).place = t;
+    ;}
     break;
 
   case 31:
 
 /* Line 1455 of yacc.c  */
-#line 219 "minialgo.y"
+#line 245 "minialgo.y"
     {
-    if (!compatible((yyvsp[(1) - (3)].str), (yyvsp[(3) - (3)].str))) {
-        printf("❌ Type incompatible dans expression\n");
-    }
-
-    // division → souvent FLOAT
-    (yyval.str) = "FLOAT";
-;}
+        if (!compatible((yyvsp[(1) - (3)].expr).type, (yyvsp[(3) - (3)].expr).type))
+            printf("Erreur semantique ligne %d : types incompatibles dans '+'\n", ligne);
+        char *t = newTemp();
+        generer_quad("+", (yyvsp[(1) - (3)].expr).place, (yyvsp[(3) - (3)].expr).place, t);
+        (yyval.expr).type  = (strcmp((yyvsp[(1) - (3)].expr).type,"FLOAT")==0 || strcmp((yyvsp[(3) - (3)].expr).type,"FLOAT")==0) ? "FLOAT" : "INTEGER";
+        (yyval.expr).place = t;
+    ;}
     break;
 
   case 32:
 
 /* Line 1455 of yacc.c  */
-#line 227 "minialgo.y"
-    { (yyval.str)=(yyvsp[(2) - (3)].str);}
+#line 253 "minialgo.y"
+    {
+        if (!compatible((yyvsp[(1) - (3)].expr).type, (yyvsp[(3) - (3)].expr).type))
+            printf("Erreur semantique ligne %d : types incompatibles dans '-'\n", ligne);
+        char *t = newTemp();
+        generer_quad("-", (yyvsp[(1) - (3)].expr).place, (yyvsp[(3) - (3)].expr).place, t);
+        (yyval.expr).type  = (strcmp((yyvsp[(1) - (3)].expr).type,"FLOAT")==0 || strcmp((yyvsp[(3) - (3)].expr).type,"FLOAT")==0) ? "FLOAT" : "INTEGER";
+        (yyval.expr).place = t;
+    ;}
     break;
 
   case 33:
 
 /* Line 1455 of yacc.c  */
-#line 235 "minialgo.y"
+#line 261 "minialgo.y"
     {
-        // $3 est l'IDF, $5 est le 1er INT_CONST, $7 le 2eme, $9 le 3eme
-        if (!existe((yyvsp[(3) - (13)].str))) {
-            printf(" ERREUR SEMANTIQUE : ligne %d : variable %s non declaree\n", ligne, (yyvsp[(3) - (13)].str));
-        } else {
-            if (isConstante((yyvsp[(3) - (13)].str))) {
-                printf(" ERREUR SEMANTIQUE : ligne %d : %s est une constante\n", ligne, (yyvsp[(3) - (13)].str));
-            }
-
-            // Vérification du type de l'IDF (doit être INTEGER pour une boucle)
-            if (strcmp(getType((yyvsp[(3) - (13)].str)), "INTEGER") != 0) {
-                printf(" ERREUR SEMANTIQUE :ligne %d : l'indice du FOR doit etre un INTEGER\n", ligne);
-            }
-
-            // Vérification logique : la valeur de fin ($7) doit être > valeur de début ($5)
-            if ((yyvsp[(9) - (13)].ival) < 0) {
-                printf(" ERREUR SEMANTIQUE : ligne %d : le pas de progression ne peut pas etre negatif\n", ligne);
-            }
-            
-            if ((yyvsp[(7) - (13)].ival) < (yyvsp[(5) - (13)].ival)) {
-                printf(" ATTENTION ligne %d : la borne de fin est inferieure a la borne de debut\n", ligne);
-            }
-
-            setInitialisee((yyvsp[(3) - (13)].str));
-        }
+        if (!compatible((yyvsp[(1) - (3)].expr).type, (yyvsp[(3) - (3)].expr).type))
+            printf("Erreur semantique ligne %d : types incompatibles dans '*'\n", ligne);
+        char *t = newTemp();
+        generer_quad("*", (yyvsp[(1) - (3)].expr).place, (yyvsp[(3) - (3)].expr).place, t);
+        (yyval.expr).type  = (strcmp((yyvsp[(1) - (3)].expr).type,"FLOAT")==0 || strcmp((yyvsp[(3) - (3)].expr).type,"FLOAT")==0) ? "FLOAT" : "INTEGER";
+        (yyval.expr).place = t;
     ;}
     break;
 
   case 34:
 
 /* Line 1455 of yacc.c  */
-#line 265 "minialgo.y"
+#line 269 "minialgo.y"
     {
-        if (strcmp((yyvsp[(3) - (7)].str), "INTEGER") != 0) {
-            printf("ERREUR SEMANTIQUE: Erreur ligne %d : La condition du WHILE doit être de type INTEGER\n", ligne);
-        }
+        if (!compatible((yyvsp[(1) - (3)].expr).type, (yyvsp[(3) - (3)].expr).type))
+            printf("Erreur semantique ligne %d : types incompatibles dans '/'\n", ligne);
+        /* détection division par zéro sur constante littérale */
+        if (strcmp((yyvsp[(3) - (3)].expr).place, "0") == 0)
+            printf("Erreur semantique ligne %d : division par zero\n", ligne);
+        char *t = newTemp();
+        generer_quad("/", (yyvsp[(1) - (3)].expr).place, (yyvsp[(3) - (3)].expr).place, t);
+        (yyval.expr).type  = "FLOAT";
+        (yyval.expr).place = t;
     ;}
     break;
 
   case 35:
 
 /* Line 1455 of yacc.c  */
-#line 274 "minialgo.y"
+#line 280 "minialgo.y"
     {
-        if (strcmp((yyvsp[(3) - (7)].str), "INTEGER") != 0) {
-            printf("❌ Condition de IF doit être de type INTEGER\n");
-        }
+        (yyval.expr) = (yyvsp[(2) - (3)].expr);
     ;}
     break;
 
   case 36:
 
 /* Line 1455 of yacc.c  */
-#line 280 "minialgo.y"
+#line 289 "minialgo.y"
     {
-        if (strcmp((yyvsp[(3) - (11)].str), "INTEGER") != 0) {
-            printf("❌ Condition de IF doit être de type INTEGER\n");           
-        }
+        char *t = newTemp();
+        generer_quad(">", (yyvsp[(1) - (3)].expr).place, (yyvsp[(3) - (3)].expr).place, t);
+        (yyval.expr).type = "INTEGER"; (yyval.expr).place = t;
     ;}
     break;
 
   case 37:
 
 /* Line 1455 of yacc.c  */
-#line 288 "minialgo.y"
-    { (yyval.str) = strdup("INTEGER"); ;}
+#line 294 "minialgo.y"
+    {
+        char *t = newTemp();
+        generer_quad("<", (yyvsp[(1) - (3)].expr).place, (yyvsp[(3) - (3)].expr).place, t);
+        (yyval.expr).type = "INTEGER"; (yyval.expr).place = t;
+    ;}
     break;
 
   case 38:
 
 /* Line 1455 of yacc.c  */
-#line 289 "minialgo.y"
-    { (yyval.str) = strdup("INTEGER"); ;}
+#line 299 "minialgo.y"
+    {
+        char *t = newTemp();
+        generer_quad("==", (yyvsp[(1) - (3)].expr).place, (yyvsp[(3) - (3)].expr).place, t);
+        (yyval.expr).type = "INTEGER"; (yyval.expr).place = t;
+    ;}
     break;
 
   case 39:
 
 /* Line 1455 of yacc.c  */
-#line 290 "minialgo.y"
-    { (yyval.str) = strdup("INTEGER"); ;}
+#line 304 "minialgo.y"
+    {
+        char *t = newTemp();
+        generer_quad("!=", (yyvsp[(1) - (3)].expr).place, (yyvsp[(3) - (3)].expr).place, t);
+        (yyval.expr).type = "INTEGER"; (yyval.expr).place = t;
+    ;}
     break;
 
   case 40:
 
 /* Line 1455 of yacc.c  */
-#line 291 "minialgo.y"
-    { (yyval.str) = strdup("INTEGER"); ;}
+#line 309 "minialgo.y"
+    {
+        char *t = newTemp();
+        generer_quad(">=", (yyvsp[(1) - (3)].expr).place, (yyvsp[(3) - (3)].expr).place, t);
+        (yyval.expr).type = "INTEGER"; (yyval.expr).place = t;
+    ;}
     break;
 
   case 41:
 
 /* Line 1455 of yacc.c  */
-#line 292 "minialgo.y"
-    { (yyval.str) = strdup("INTEGER"); ;}
+#line 314 "minialgo.y"
+    {
+        char *t = newTemp();
+        generer_quad("<=", (yyvsp[(1) - (3)].expr).place, (yyvsp[(3) - (3)].expr).place, t);
+        (yyval.expr).type = "INTEGER"; (yyval.expr).place = t;
+    ;}
     break;
 
   case 42:
 
 /* Line 1455 of yacc.c  */
-#line 293 "minialgo.y"
-    {(yyval.str)=(yyvsp[(2) - (2)].str);}
+#line 319 "minialgo.y"
+    {
+        char *t = newTemp();
+        generer_quad("!", (yyvsp[(2) - (2)].expr).place, "", t);
+        (yyval.expr).type = "INTEGER"; (yyval.expr).place = t;
+    ;}
     break;
 
   case 43:
 
 /* Line 1455 of yacc.c  */
-#line 298 "minialgo.y"
+#line 324 "minialgo.y"
     {
-        if (strcmp((yyvsp[(2) - (3)].str), "INTEGER") != 0 && strcmp((yyvsp[(2) - (3)].str), "FLOAT") != 0) {
-            printf("❌ write ne peut afficher que des INTEGER ou FLOAT\n");
-        }
+        char *t = newTemp();
+        generer_quad("&&", (yyvsp[(1) - (3)].expr).place, (yyvsp[(3) - (3)].expr).place, t);
+        (yyval.expr).type = "INTEGER"; (yyval.expr).place = t;
+    ;}
+    break;
+
+  case 44:
+
+/* Line 1455 of yacc.c  */
+#line 329 "minialgo.y"
+    {
+        char *t = newTemp();
+        generer_quad("||", (yyvsp[(1) - (3)].expr).place, (yyvsp[(3) - (3)].expr).place, t);
+        (yyval.expr).type = "INTEGER"; (yyval.expr).place = t;
+    ;}
+    break;
+
+  case 45:
+
+/* Line 1455 of yacc.c  */
+#line 352 "minialgo.y"
+    {
+        char *lelse = newLabel();
+        generer_quad("ifFalse", (yyvsp[(3) - (4)].expr).place, "", lelse);
+        (yyval.str) = lelse;
+    ;}
+    break;
+
+  case 46:
+
+/* Line 1455 of yacc.c  */
+#line 358 "minialgo.y"
+    {
+        generer_quad("label", "", "", (yyvsp[(3) - (8)].str));
+    ;}
+    break;
+
+  case 47:
+
+/* Line 1455 of yacc.c  */
+#line 363 "minialgo.y"
+    {
+        char *lelse = newLabel();
+        generer_quad("ifFalse", (yyvsp[(3) - (4)].expr).place, "", lelse);
+        (yyval.str) = lelse;
+    ;}
+    break;
+
+  case 48:
+
+/* Line 1455 of yacc.c  */
+#line 369 "minialgo.y"
+    {
+        char *lend = newLabel();
+        generer_quad("goto", "", "", lend);
+        generer_quad("label", "", "", (yyvsp[(3) - (8)].str));
+        (yyval.str) = lend;
+    ;}
+    break;
+
+  case 49:
+
+/* Line 1455 of yacc.c  */
+#line 376 "minialgo.y"
+    {
+        generer_quad("label", "", "", (yyvsp[(7) - (13)].str));
+    ;}
+    break;
+
+  case 50:
+
+/* Line 1455 of yacc.c  */
+#line 395 "minialgo.y"
+    {
+            char *ldebut = newLabel();
+            generer_quad("label", "", "", ldebut);
+            (yyval.str) = ldebut;
+        ;}
+    break;
+
+  case 51:
+
+/* Line 1455 of yacc.c  */
+#line 401 "minialgo.y"
+    {
+            char *lfin = newLabel();
+            generer_quad("ifFalse", (yyvsp[(4) - (5)].expr).place, "", lfin);
+            (yyval.str) = lfin;
+        ;}
+    break;
+
+  case 52:
+
+/* Line 1455 of yacc.c  */
+#line 407 "minialgo.y"
+    {
+            generer_quad("goto",  "", "", (yyvsp[(2) - (9)].str));   /* retour en début de boucle */
+            generer_quad("label", "", "", (yyvsp[(6) - (9)].str));   /* label de sortie           */
+        ;}
+    break;
+
+  case 53:
+
+/* Line 1455 of yacc.c  */
+#line 431 "minialgo.y"
+    {
+            /* ── vérifications sémantiques ── */
+            if (!existe((yyvsp[(3) - (10)].str)))
+                printf("Erreur semantique ligne %d : '%s' non declare\n", ligne, (yyvsp[(3) - (10)].str));
+            else if (isConstante((yyvsp[(3) - (10)].str)))
+                printf("Erreur semantique ligne %d : '%s' est une constante\n", ligne, (yyvsp[(3) - (10)].str));
+            else if (strcmp(getType((yyvsp[(3) - (10)].str)), "INTEGER") != 0)
+                printf("Erreur semantique ligne %d : l'indice de FOR doit etre INTEGER\n", ligne);
+
+            if ((yyvsp[(7) - (10)].ival) == 0)
+                printf("Erreur semantique ligne %d : le pas du FOR ne peut pas etre 0\n", ligne);
+            if ((yyvsp[(7) - (10)].ival) > 0 && (yyvsp[(9) - (10)].ival) < (yyvsp[(5) - (10)].ival))
+                printf("Avertissement ligne %d : borne de fin < borne de debut (boucle vide)\n", ligne);
+
+            /* ── initialisation de l'indice ── */
+            char buf_debut[20], buf_pas[20], buf_fin[20];
+            sprintf(buf_debut, "%d", (yyvsp[(5) - (10)].ival));
+            sprintf(buf_pas,   "%d", (yyvsp[(7) - (10)].ival));
+            sprintf(buf_fin,   "%d", (yyvsp[(9) - (10)].ival));
+
+            generer_quad("=", buf_debut, "", (yyvsp[(3) - (10)].str));
+            setInitialisee((yyvsp[(3) - (10)].str));
+
+            /* ── label de début de boucle ── */
+            char *ldebut = newLabel();
+            generer_quad("label", "", "", ldebut);
+
+            /* ── condition i <= fin ── */
+            char *tcond = newTemp();
+            generer_quad("<=", (yyvsp[(3) - (10)].str), buf_fin, tcond);
+
+            /* ── saut de sortie ── */
+            char *lfin = newLabel();
+            generer_quad("ifFalse", tcond, "", lfin);
+
+            /* stocker pour après les instructions */
+            (yyval.str) = ldebut;      /* on réutilise $$ pour stocker ldebut */
+
+            /* NOTE : buf_pas et lfin sont stockés via une astuce —
+               on les passe en global temporairement */
+            /* Pour simplifier : on les stocke dans des variables globales ad-hoc */
+            extern char _for_pas[20];
+            extern char _for_idf[20];
+            extern char _for_lfin[30];
+            strcpy(_for_pas,  buf_pas);
+            strcpy(_for_idf,  (yyvsp[(3) - (10)].str));
+            strcpy(_for_lfin, lfin);
+        ;}
+    break;
+
+  case 54:
+
+/* Line 1455 of yacc.c  */
+#line 480 "minialgo.y"
+    {
+            extern char _for_pas[20];
+            extern char _for_idf[20];
+            extern char _for_lfin[30];
+
+            /* incrémenter l'indice */
+            char *tinc = newTemp();
+            generer_quad("+", _for_idf, _for_pas, tinc);
+            generer_quad("=", tinc, "", _for_idf);
+
+            /* retour au début */
+            generer_quad("goto",  "", "", (yyvsp[(11) - (14)].str));
+
+            /* label de fin */
+            generer_quad("label", "", "", _for_lfin);
+        ;}
+    break;
+
+  case 55:
+
+/* Line 1455 of yacc.c  */
+#line 502 "minialgo.y"
+    {
+        if (strcmp((yyvsp[(3) - (5)].expr).type, "INTEGER") != 0 && strcmp((yyvsp[(3) - (5)].expr).type, "FLOAT") != 0)
+            printf("Erreur semantique ligne %d : WRITE ne peut afficher que INTEGER ou FLOAT\n", ligne);
+        generer_quad("write", (yyvsp[(3) - (5)].expr).place, "", "");
     ;}
     break;
 
 
 
 /* Line 1455 of yacc.c  */
-#line 1800 "minialgo.tab.c"
+#line 2040 "minialgo.tab.c"
       default: break;
     }
   YY_SYMBOL_PRINT ("-> $$ =", yyr1[yyn], &yyval, &yyloc);
@@ -2008,9 +2248,20 @@ yyreturn:
 
 
 /* Line 1675 of yacc.c  */
-#line 305 "minialgo.y"
+#line 509 "minialgo.y"
 
 
+/* ─────────────────────────────────────────
+   Variables globales pour la boucle FOR
+   ───────────────────────────────────────── */
+char _for_pas[20]  = "";
+char _for_idf[20]  = "";
+char _for_lfin[30] = "";
+
+/* ─────────────────────────────────────────
+   Gestion des erreurs syntaxiques
+   ───────────────────────────────────────── */
 void yyerror(const char *s) {
-    printf("Erreur syntaxique: %s\n", s);
+    printf("Erreur syntaxique : ligne %d, colonne %d : %s\n", ligne, colonne, s);
 }
+

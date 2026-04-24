@@ -57,11 +57,11 @@
      NEQ = 273,
      GE = 274,
      LE = 275,
-     IDF = 276,
-     INT_CONST = 277,
-     FLOAT_CONST = 278,
-     TO = 279,
-     DO = 280
+     AND = 276,
+     OR = 277,
+     IDF = 278,
+     INT_CONST = 279,
+     FLOAT_CONST = 280
    };
 #endif
 
@@ -72,16 +72,20 @@ typedef union YYSTYPE
 {
 
 /* Line 1676 of yacc.c  */
-#line 20 "minialgo.y"
+#line 21 "minialgo.y"
 
-    int ival;
+    int   ival;
     float fval;
-    char* str;
+    char *str;
+    struct {
+        char *type;    /* "INTEGER" ou "FLOAT" */
+        char *place;   /* T0, T1 … ou nom de variable */
+    } expr;
 
 
 
 /* Line 1676 of yacc.c  */
-#line 85 "minialgo.tab.h"
+#line 89 "minialgo.tab.h"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */

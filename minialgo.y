@@ -5,408 +5,519 @@
 #include "symtable.h"
 #include "quad.h"
 
-//#define YYDEBUG 1
+extern int yylex();
+void yyerror(const char *s);
 
-extern int yylex();// déclaration de la fonction de lexing
-void yyerror(const char *s);// déclaration de la fonction de gestion des erreurs
-
-
-// On indique à Bison que 'ligne' est définie dans lex.yy.c
 extern int ligne;
+extern int colonne;
 
-char* current_type;// pour stocker le type courant lors des déclarations
-int current_const = 0;// 0 = variable, 1 = constante
+char *current_type  = NULL;   /* type courant (INTEGER / FLOAT) */
+int   current_const = 0;      /* 0 = variable, 1 = constante  */
 %}
 
+/* ────────────────────────────────────────
+   UNION des valeurs sémantiques
+   ──────────────────────────────────────── */
 %union {
-    int ival;
+    int   ival;
     float fval;
-    char* str;
-
+    char *str;
     struct {
-        char* type;
-        char* place; // 🔥 T1, T2, A, B...
+        char *type;    /* "INTEGER" ou "FLOAT" */
+        char *place;   /* T0, T1 … ou nom de variable */
     } expr;
 }
- 
 
+/* ────────────────────────────────────────
+   TOKENS
+   ──────────────────────────────────────── */
 %token PROGRAM DECL ENDDECL BEGIN_T END_T
-%token INTEGER FLOAT_T CONST 
+%token INTEGER FLOAT_T CONST
 %token IF ELSE WHILE FOR WRITE
-%token EQL EQ NEQ GE LE 
-%token <str> IDF
-%token <ival> INT_CONST
-%token <fval> FLOAT_CONST
-%token TO DO
+%token EQL EQ NEQ GE LE
 %token AND OR
 
-//%type <str> type expression condition
+%token <str>  IDF
+%token <ival> INT_CONST
+%token <fval> FLOAT_CONST
+
+/* ────────────────────────────────────────
+   TYPES DES NON-TERMINAUX
+   ──────────────────────────────────────── */
 %type <expr> expression condition
+
+/* ────────────────────────────────────────
+   PRIORITÉS ET ASSOCIATIVITÉ
+   ──────────────────────────────────────── */
+%left OR
+%left AND
+%right '!'
+%left EQ NEQ
+%left '<' '>' GE LE
 %left '+' '-'
 %left '*' '/'
 
 %%
 
-programme://début de la grammaire
+/* ════════════════════════════════════════
+   PROGRAMME
+   ════════════════════════════════════════ */
+programme:
     PROGRAM IDF declarations BEGIN_T instructions END_T
     {
-        
-        printf(" Analyse terminee avec succes ! BRAVO !!!\n");
+        afficherTable();
+        afficher_quads();
+        optimiser_quads();
+        printf("\n=== APRES OPTIMISATION ===\n");
+        afficher_quads();
+        generer_asm_8086("output.asm");
+        printf("\nAnalyse et compilation terminees avec succes !\n");
     }
 ;
 
-/* ===== DECLARATIONS ===== */
-
+/* ════════════════════════════════════════
+   DÉCLARATIONS
+   ════════════════════════════════════════ */
 declarations:
     DECL liste_declarations ENDDECL
 ;
 
 liste_declarations:
     liste_declarations declaration
-    |/* vide */
+    | declaration
 ;
 
 declaration:
     type ':' liste_id ';'
-    |declaration_constante
-;
-type:
-    INTEGER { current_type = "INTEGER"; current_const = 0; }
-    | FLOAT_T { current_type = "FLOAT"; current_const = 0; }
+    | declaration_constante
 ;
 
+type:
+    INTEGER { current_type = "INTEGER"; current_const = 0; }
+    | FLOAT_T { current_type = "FLOAT";   current_const = 0; }
+;
+
+/* ── liste d'identifiants (possiblement avec init ou tableau) ── */
 liste_id:
-    IDF {
-        inserer($1, current_type, current_const);
+    liste_id ',' IDF {
+        inserer($3, current_type, current_const);
     }
-   
-    /* Cas récursif pour les listes : INTEGER : A, B, C ; */
-    | liste_id ',' IDF { 
-        inserer($3, current_type, current_const); 
-    }
-    
-    /* Cas récursif avec initialisation : INTEGER : A, B = 5, C ; */
     | liste_id ',' IDF EQL expression {
         inserer($3, current_type, current_const);
         setInitialisee($3);
-        
-        if (!compatible(current_type, $5)) {
-            printf(" Erreur ligne %d : Incompatibilité de type lors de l'initialisation de %s (%s attendu, %s reçu)\n", 
-                    ligne, $3, current_type, $5);
-        }
+        if (!compatible(current_type, $5.type))
+            printf("Erreur semantique ligne %d : incompatibilite de type pour '%s' (%s attendu, %s recu)\n",
+                   ligne, $3, current_type, $5.type);
+        else
+            generer_quad("=", $5.place, "", $3);
     }
-    /* Cas avec initialisation : INTEGER : i = 0 ; */
-    | IDF EQL expression { 
-        // 1. Insertion dans la table des symboles
+    | IDF {
         inserer($1, current_type, current_const);
-        
-        // 2. Marquage comme initialisée
+    }
+    | IDF EQL expression {
+        inserer($1, current_type, current_const);
         setInitialisee($1);
-        
-        // 3. Vérification de la compatibilité des types
-        // current_type est le type à gauche, $3 est le type de l'expression à droite
-        if (!compatible(current_type, $3)) {
-            printf(" Erreur ligne %d : Incompatibilité de type lors de l'initialisation de %s (%s attendu, %s reçu)\n", 
-                    ligne, $1, current_type, $3);
-        }
+        if (!compatible(current_type, $3.type))
+            printf("Erreur semantique ligne %d : incompatibilite de type pour '%s' (%s attendu, %s recu)\n",
+                   ligne, $1, current_type, $3.type);
+        else
+            generer_quad("=", $3.place, "", $1);
     }
     | IDF '[' INT_CONST ']' {
-    inserer_tableau($1, current_type, $3);
-    if ($3 <= 0) {
-    printf("Erreur : taille tableau invalide ligne %d\n", ligne);
-        }
+        if ($3 <= 0)
+            printf("Erreur semantique ligne %d : taille de tableau invalide pour '%s'\n", ligne, $1);
+        else
+            inserer_tableau($1, current_type, $3);
     }
-    
 ;
 
-/* ===== CONST ===== */
-
+/* ── Constante ── */
 declaration_constante:
     CONST IDF EQL INT_CONST ';' {
-        if (existe($2)) {
-            printf(" Erreur sémantique ligne %d : double déclaration de %s\n", ligne, $2);
-        } else {
+        if (existe($2))
+            printf("Erreur semantique ligne %d : double declaration de '%s'\n", ligne, $2);
+        else {
             inserer($2, "INTEGER", 1);
             setInitialisee($2);
-
-            // 🔥 ETAPE 4 + 5 : génération quadruplet
-            char buffer[20];
-            sprintf(buffer, "%d", $4);
-
-            generer_quad("=", buffer, "", $2);
+            char buf[30]; sprintf(buf, "%d", $4);
+            generer_quad("=", buf, "", $2);
         }
     }
-
     | CONST IDF EQL FLOAT_CONST ';' {
-        if (existe($2)) {
-            printf(" Erreur sémantique ligne %d : double déclaration de %s\n", ligne, $2);
-        } else {
+        if (existe($2))
+            printf("Erreur semantique ligne %d : double declaration de '%s'\n", ligne, $2);
+        else {
             inserer($2, "FLOAT", 1);
             setInitialisee($2);
-
-            // génération quadruplet
-            char buffer[20];
-            sprintf(buffer, "%f", $4);
-
-            generer_quad("=", buffer, "", $2);
+            char buf[30]; sprintf(buf, "%f", $4);
+            generer_quad("=", buf, "", $2);
         }
     }
 ;
 
-/* ===== INSTRUCTIONS ===== */
-
+/* ════════════════════════════════════════
+   INSTRUCTIONS
+   ════════════════════════════════════════ */
 instructions:
     /* vide */
     | instructions instruction
 ;
 
-instruction:affectation
+instruction:
+    affectation
     | declaration_constante
     | InstructionFor
     | InstructionWhile
     | InstructionIf
     | write
-    
-    
 ;
 
-
-
-
-/* ===== AFFECTATION ===== */
-
+/* ────────────────────────────────────────
+   AFFECTATION
+   ──────────────────────────────────────── */
 affectation:
-    IDF EQL expression ';'
-    {
-        // 1. Vérifier déclaration
-        if (!existe($1)) {
-            printf(" ERREUR SEMANTIQUE : %s non déclaré\n", $1);
-        }
+    IDF EQL expression ';' {
+        if (!existe($1))
+            printf("Erreur semantique ligne %d : '%s' non declare\n", ligne, $1);
+        else if (isConstante($1))
+            printf("Erreur semantique ligne %d : '%s' est une constante, affectation interdite\n", ligne, $1);
         else {
-            char* type_gauche = getType($1);
-            char* type_droite = $3.type;
-
-            // 2. Vérification des types
-            if (!compatible(type_gauche, type_droite)) {
-                printf("ERREUR SEMANTIQUE : ligne %d : incompatibilité entre %s et %s\n",
-                       ligne, type_gauche, type_droite);
-            }
-
-            // GENERATION QUADRUPLET
+            if (!compatible(getType($1), $3.type))
+                printf("Erreur semantique ligne %d : incompatibilite de type (%s = %s)\n",
+                       ligne, getType($1), $3.type);
             generer_quad("=", $3.place, "", $1);
-
-            // Marquer initialisée
             setInitialisee($1);
         }
     }
+    /* accès tableau : T[i] = expr */
+    | IDF '[' expression ']' EQL expression ';' {
+        if (!existe($1))
+            printf("Erreur semantique ligne %d : '%s' non declare\n", ligne, $1);
+        else if (!isTableau($1))
+            printf("Erreur semantique ligne %d : '%s' n'est pas un tableau\n", ligne, $1);
+        else {
+            /* vérification d'indice si constante */
+            char res[40];
+            sprintf(res, "%s[%s]", $1, $3.place);
+            generer_quad("=", $6.place, "", res);
+        }
+    }
 ;
 
-/* ===== EXPRESSIONS ===== */
-
+/* ════════════════════════════════════════
+   EXPRESSIONS
+   ════════════════════════════════════════ */
 expression:
-
-    /* ===== CONSTANTE ENTIERE ===== */
     INT_CONST {
-        char buffer[20];
-        sprintf(buffer, "%d", $1);
-
-        char* temp = newTemp();
-        generer_quad("=", buffer, "", temp);
-
-        $$.type = "INTEGER";
-        $$.place = temp;
+        char buf[30]; sprintf(buf, "%d", $1);
+        char *t = newTemp();
+        generer_quad("=", buf, "", t);
+        $$.type  = "INTEGER";
+        $$.place = t;
     }
-
-    /* ===== CONSTANTE FLOAT ===== */
     | FLOAT_CONST {
-        char buffer[20];
-        sprintf(buffer, "%f", $1);
-
-        char* temp = newTemp();
-        generer_quad("=", buffer, "", temp);
-
-        $$.type = "FLOAT";
-        $$.place = temp;
+        char buf[30]; sprintf(buf, "%f", $1);
+        char *t = newTemp();
+        generer_quad("=", buf, "", t);
+        $$.type  = "FLOAT";
+        $$.place = t;
     }
-
-    /* ===== IDENTIFICATEUR ===== */
     | IDF {
-        if (!existe($1)) {
-            printf("❌ %s non déclaré\n", $1);
-        }
-
-        if (!estInitialisee($1)) {
-            printf("⚠️ variable non initialisée : %s\n", $1);
-        }
-
-        $$.type = getType($1);
+        if (!existe($1))
+            printf("Erreur semantique ligne %d : '%s' non declare\n", ligne, $1);
+        else if (!estInitialisee($1))
+            printf("Avertissement ligne %d : '%s' utilisee sans initialisation\n", ligne, $1);
+        $$.type  = existe($1) ? getType($1) : "INTEGER";
         $$.place = $1;
     }
-
-    /* ===== ADDITION ===== */
+    /* accès tableau : T[i] */
+    | IDF '[' expression ']' {
+        if (!existe($1))
+            printf("Erreur semantique ligne %d : '%s' non declare\n", ligne, $1);
+        else if (!isTableau($1))
+            printf("Erreur semantique ligne %d : '%s' n'est pas un tableau\n", ligne, $1);
+        char *t = newTemp();
+        char  src[40]; sprintf(src, "%s[%s]", $1, $3.place);
+        generer_quad("=", src, "", t);
+        $$.type  = existe($1) ? getType($1) : "INTEGER";
+        $$.place = t;
+    }
     | expression '+' expression {
-
-        if (!compatible($1.type, $3.type)) {
-            printf("❌ Type incompatible dans +\n");
-        }
-
-        char* temp = newTemp();
-        generer_quad("+", $1.place, $3.place, temp);
-
-        $$.type =
-            (strcmp($1.type, "FLOAT") == 0 || strcmp($3.type, "FLOAT") == 0)
-            ? "FLOAT" : "INTEGER";
-
-        $$.place = temp;
+        if (!compatible($1.type, $3.type))
+            printf("Erreur semantique ligne %d : types incompatibles dans '+'\n", ligne);
+        char *t = newTemp();
+        generer_quad("+", $1.place, $3.place, t);
+        $$.type  = (strcmp($1.type,"FLOAT")==0 || strcmp($3.type,"FLOAT")==0) ? "FLOAT" : "INTEGER";
+        $$.place = t;
     }
-
-    /* ===== SOUSTRACTION ===== */
     | expression '-' expression {
-
-        if (!compatible($1.type, $3.type)) {
-            printf("❌ Type incompatible dans -\n");
-        }
-
-        char* temp = newTemp();
-        generer_quad("-", $1.place, $3.place, temp);
-
-        $$.type =
-            (strcmp($1.type, "FLOAT") == 0 || strcmp($3.type, "FLOAT") == 0)
-            ? "FLOAT" : "INTEGER";
-
-        $$.place = temp;
+        if (!compatible($1.type, $3.type))
+            printf("Erreur semantique ligne %d : types incompatibles dans '-'\n", ligne);
+        char *t = newTemp();
+        generer_quad("-", $1.place, $3.place, t);
+        $$.type  = (strcmp($1.type,"FLOAT")==0 || strcmp($3.type,"FLOAT")==0) ? "FLOAT" : "INTEGER";
+        $$.place = t;
     }
-
-    /* ===== MULTIPLICATION ===== */
     | expression '*' expression {
-
-        if (!compatible($1.type, $3.type)) {
-            printf("❌ Type incompatible dans *\n");
-        }
-
-        char* temp = newTemp();
-        generer_quad("*", $1.place, $3.place, temp);
-
-        $$.type =
-            (strcmp($1.type, "FLOAT") == 0 || strcmp($3.type, "FLOAT") == 0)
-            ? "FLOAT" : "INTEGER";
-
-        $$.place = temp;
+        if (!compatible($1.type, $3.type))
+            printf("Erreur semantique ligne %d : types incompatibles dans '*'\n", ligne);
+        char *t = newTemp();
+        generer_quad("*", $1.place, $3.place, t);
+        $$.type  = (strcmp($1.type,"FLOAT")==0 || strcmp($3.type,"FLOAT")==0) ? "FLOAT" : "INTEGER";
+        $$.place = t;
     }
-
-    /* ===== DIVISION ===== */
     | expression '/' expression {
-
-        if (!compatible($1.type, $3.type)) {
-            printf("❌ Type incompatible dans /\n");
-        }
-
-        // ⚠️ division par zéro (si tu veux améliorer après)
-        char* temp = newTemp();
-        generer_quad("/", $1.place, $3.place, temp);
-
-        $$.type = "FLOAT";
-        $$.place = temp;
+        if (!compatible($1.type, $3.type))
+            printf("Erreur semantique ligne %d : types incompatibles dans '/'\n", ligne);
+        /* détection division par zéro sur constante littérale */
+        if (strcmp($3.place, "0") == 0)
+            printf("Erreur semantique ligne %d : division par zero\n", ligne);
+        char *t = newTemp();
+        generer_quad("/", $1.place, $3.place, t);
+        $$.type  = "FLOAT";
+        $$.place = t;
     }
-
-    /* ===== PARENTHESES ===== */
     | '(' expression ')' {
         $$ = $2;
     }
-    /* ====
 ;
 
-
-/* ===== INSTRUCTIONS FOR ===== */
-InstructionFor:
-    FOR '(' IDF ':' INT_CONST ':' INT_CONST ':' INT_CONST ')' '{' instructions '}'
-    {
-        // $3 est l'IDF, $5 est le 1er INT_CONST, $7 le 2eme, $9 le 3eme
-        if (!existe($3)) {
-            printf(" ERREUR SEMANTIQUE : ligne %d : variable %s non declaree\n", ligne, $3);
-        } else {
-            if (isConstante($3)) {
-                printf(" ERREUR SEMANTIQUE : ligne %d : %s est une constante\n", ligne, $3);
-            }
-
-            // Vérification du type de l'IDF (doit être INTEGER pour une boucle)
-            if (strcmp(getType($3), "INTEGER") != 0) {
-                printf(" ERREUR SEMANTIQUE :ligne %d : l'indice du FOR doit etre un INTEGER\n", ligne);
-            }
-
-            // Vérification logique : la valeur de fin ($7) doit être > valeur de début ($5)
-            if ($9 < 0) {
-                printf(" ERREUR SEMANTIQUE : ligne %d : le pas de progression ne peut pas etre negatif\n", ligne);
-            }
-            
-            if ($7 < $5) {
-                printf(" ATTENTION ligne %d : la borne de fin est inferieure a la borne de debut\n", ligne);
-            }
-
-            setInitialisee($3);
-        }
+/* ════════════════════════════════════════
+   CONDITIONS
+   ════════════════════════════════════════ */
+condition:
+    expression '>' expression {
+        char *t = newTemp();
+        generer_quad(">", $1.place, $3.place, t);
+        $$.type = "INTEGER"; $$.place = t;
     }
-    ;
-/* ===== INSTRUCTIONS WHILE ===== */
-InstructionWhile:
-    WHILE '(' condition ')' '{' instructions '}'
-    {
-        if (strcmp($3.type, "INTEGER") != 0) {
-            printf("ERREUR SEMANTIQUE: Erreur ligne %d : La condition du WHILE doit être de type INTEGER\n", ligne);
-        }
+    | expression '<' expression {
+        char *t = newTemp();
+        generer_quad("<", $1.place, $3.place, t);
+        $$.type = "INTEGER"; $$.place = t;
     }
-    ;
-/* ===== INSTRUCTIONS IF ===== */
+    | expression EQ expression {
+        char *t = newTemp();
+        generer_quad("==", $1.place, $3.place, t);
+        $$.type = "INTEGER"; $$.place = t;
+    }
+    | expression NEQ expression {
+        char *t = newTemp();
+        generer_quad("!=", $1.place, $3.place, t);
+        $$.type = "INTEGER"; $$.place = t;
+    }
+    | expression GE expression {
+        char *t = newTemp();
+        generer_quad(">=", $1.place, $3.place, t);
+        $$.type = "INTEGER"; $$.place = t;
+    }
+    | expression LE expression {
+        char *t = newTemp();
+        generer_quad("<=", $1.place, $3.place, t);
+        $$.type = "INTEGER"; $$.place = t;
+    }
+    | '!' expression {
+        char *t = newTemp();
+        generer_quad("!", $2.place, "", t);
+        $$.type = "INTEGER"; $$.place = t;
+    }
+    | condition AND condition {
+        char *t = newTemp();
+        generer_quad("&&", $1.place, $3.place, t);
+        $$.type = "INTEGER"; $$.place = t;
+    }
+    | condition OR condition {
+        char *t = newTemp();
+        generer_quad("||", $1.place, $3.place, t);
+        $$.type = "INTEGER"; $$.place = t;
+    }
+;
+
+/* ════════════════════════════════════════
+   INSTRUCTION IF / ELSE
+   ════════════════════════════════════════
+
+   Quadruplets générés :
+     <évaluation condition>
+     ifFalse cond _ Lelse
+     <instructions THEN>
+     goto _ _ Lend
+     label _ _ Lelse
+     <instructions ELSE>
+     label _ _ Lend
+   ════════════════════════════════════════ */
+
 InstructionIf:
-    IF '(' condition ')' '{' instructions '}'
+    IF '(' condition ')'
     {
-        if (strcmp($3.type, "INTEGER") != 0) {
-            printf("❌ Condition de IF doit être de type INTEGER\n");
-        }
+        char *lelse = newLabel();
+        generer_quad("ifFalse", $3.place, "", lelse);
+        $<str>$ = lelse;
     }
-    | IF '(' condition ')' '{' instructions '}' ELSE '{' instructions '}'
+    '{' instructions '}'
     {
-        if (strcmp($3.type, "INTEGER") != 0) {
-            printf("❌ Condition de IF doit être de type INTEGER\n");           
-        }
+        generer_quad("label", "", "", $<str>3);
     }
-    ;
 
-/*=====CONDITION===========*/
-condition : | expression '>' expression {
-    char* temp = newTemp();
-    generer_quad(">", $1.place, $3.place, temp);
-
-    $$.type = "INTEGER";
-    $$.place = temp;
-}
-| expression '<' expression{ $$ = strdup("INTEGER"); }
-|expression EQ expression{ $$ = strdup("INTEGER"); }
-|expression LE expression { $$ = strdup("INTEGER"); }
-|expression GE expression { $$ = strdup("INTEGER"); }
-|expression '!' expression { $$ = strdup("INTEGER"); }
-|condition AND condition { $$ = strdup("INTEGER"); }
-|condition OR condition { $$ = strdup("INTEGER"); }
-|'!' expression {
-    char* temp = newTemp();
-    generer_quad("!", $2.place, "", temp);
-
-    $$.type = "INTEGER";
-    $$.place = temp;
-}
-
-/*=====INSTRUCTION WRITE =====*/
-write :
-    WRITE expression ';'
+    | IF '(' condition ')'
     {
-        if (strcmp($2, "INTEGER") != 0 && strcmp($2, "FLOAT") != 0) {
-            printf("❌ write ne peut afficher que des INTEGER ou FLOAT\n");
-        }
+        char *lelse = newLabel();
+        generer_quad("ifFalse", $3.place, "", lelse);
+        $<str>$ = lelse;
     }
-    ;
+    '{' instructions '}'
+    {
+        char *lend = newLabel();
+        generer_quad("goto", "", "", lend);
+        generer_quad("label", "", "", $<str>3);
+        $<str>$ = lend;
+    }
+    ELSE '{' instructions '}'
+    {
+        generer_quad("label", "", "", $<str>7);
+    }
+;
+
+/* ════════════════════════════════════════
+   INSTRUCTION WHILE
+   ════════════════════════════════════════
+
+   Quadruplets générés :
+     label _ _ Ldebut
+     <évaluation condition>
+     ifFalse cond _ Lfin
+     <instructions>
+     goto _ _ Ldebut
+     label _ _ Lfin
+   ════════════════════════════════════════ */
+InstructionWhile:
+    WHILE
+        {
+            char *ldebut = newLabel();
+            generer_quad("label", "", "", ldebut);
+            $<str>$ = ldebut;
+        }
+    '(' condition ')'
+        {
+            char *lfin = newLabel();
+            generer_quad("ifFalse", $4.place, "", lfin);
+            $<str>$ = lfin;
+        }
+    '{' instructions '}'
+        {
+            generer_quad("goto",  "", "", $<str>2);   /* retour en début de boucle */
+            generer_quad("label", "", "", $<str>6);   /* label de sortie           */
+        }
+;
+
+/* ════════════════════════════════════════
+   INSTRUCTION FOR
+   ════════════════════════════════════════
+
+   FOR (i : debut : pas : fin)
+   Quadruplets générés :
+     i = debut
+     label _ _ Ldebut
+     T = i <= fin          (ou i < fin+1 selon convention)
+     ifFalse T _ Lfin
+     <instructions>
+     i = i + pas
+     goto _ _ Ldebut
+     label _ _ Lfin
+   ════════════════════════════════════════ */
+
+InstructionFor:
+    FOR '(' IDF ':' INT_CONST ':' INT_CONST ':' INT_CONST ')'
+        {
+            /* ── vérifications sémantiques ── */
+            if (!existe($3))
+                printf("Erreur semantique ligne %d : '%s' non declare\n", ligne, $3);
+            else if (isConstante($3))
+                printf("Erreur semantique ligne %d : '%s' est une constante\n", ligne, $3);
+            else if (strcmp(getType($3), "INTEGER") != 0)
+                printf("Erreur semantique ligne %d : l'indice de FOR doit etre INTEGER\n", ligne);
+
+            if ($7 == 0)
+                printf("Erreur semantique ligne %d : le pas du FOR ne peut pas etre 0\n", ligne);
+            if ($7 > 0 && $9 < $5)
+                printf("Avertissement ligne %d : borne de fin < borne de debut (boucle vide)\n", ligne);
+
+            /* ── initialisation de l'indice ── */
+            char buf_debut[20], buf_pas[20], buf_fin[20];
+            sprintf(buf_debut, "%d", $5);
+            sprintf(buf_pas,   "%d", $7);
+            sprintf(buf_fin,   "%d", $9);
+
+            generer_quad("=", buf_debut, "", $3);
+            setInitialisee($3);
+
+            /* ── label de début de boucle ── */
+            char *ldebut = newLabel();
+            generer_quad("label", "", "", ldebut);
+
+            /* ── condition i <= fin ── */
+            char *tcond = newTemp();
+            generer_quad("<=", $3, buf_fin, tcond);
+
+            /* ── saut de sortie ── */
+            char *lfin = newLabel();
+            generer_quad("ifFalse", tcond, "", lfin);
+
+            /* stocker pour après les instructions */
+            $<str>$ = ldebut;      /* on réutilise $$ pour stocker ldebut */
+
+            /* NOTE : buf_pas et lfin sont stockés via une astuce —
+               on les passe en global temporairement */
+            /* Pour simplifier : on les stocke dans des variables globales ad-hoc */
+            extern char _for_pas[20];
+            extern char _for_idf[20];
+            extern char _for_lfin[30];
+            strcpy(_for_pas,  buf_pas);
+            strcpy(_for_idf,  $3);
+            strcpy(_for_lfin, lfin);
+        }
+    '{' instructions '}'
+        {
+            extern char _for_pas[20];
+            extern char _for_idf[20];
+            extern char _for_lfin[30];
+
+            /* incrémenter l'indice */
+            char *tinc = newTemp();
+            generer_quad("+", _for_idf, _for_pas, tinc);
+            generer_quad("=", tinc, "", _for_idf);
+
+            /* retour au début */
+            generer_quad("goto",  "", "", $<str>11);
+
+            /* label de fin */
+            generer_quad("label", "", "", _for_lfin);
+        }
+;
+
+/* ════════════════════════════════════════
+   INSTRUCTION WRITE
+   ════════════════════════════════════════ */
+write:
+    WRITE '(' expression ')' ';' {
+        if (strcmp($3.type, "INTEGER") != 0 && strcmp($3.type, "FLOAT") != 0)
+            printf("Erreur semantique ligne %d : WRITE ne peut afficher que INTEGER ou FLOAT\n", ligne);
+        generer_quad("write", $3.place, "", "");
+    }
+;
 
 %%
 
+/* ─────────────────────────────────────────
+   Variables globales pour la boucle FOR
+   ───────────────────────────────────────── */
+char _for_pas[20]  = "";
+char _for_idf[20]  = "";
+char _for_lfin[30] = "";
+
+/* ─────────────────────────────────────────
+   Gestion des erreurs syntaxiques
+   ───────────────────────────────────────── */
 void yyerror(const char *s) {
-    printf("Erreur Syntaxique : ligne %d , %s\n", ligne, s);
+    printf("Erreur syntaxique : ligne %d, colonne %d : %s\n", ligne, colonne, s);
 }

@@ -1,0 +1,27 @@
+PROGRAM Test
+DECL
+    INTEGER : A, B ;
+    FLOAT : X ;
+    INTEGER : T[5] ;
+    CONST MAX = 10 ;
+ENDDECL
+BEGIN
+    A = 5 ;
+    B = 3 ;
+    X = 2.5 ;
+
+    IF (A > B) {
+        WRITE(A) ;
+    }
+    ELSE {
+        WRITE(B) ;
+    }
+
+    WHILE (B < MAX) {
+        B = B + 1 ;
+    }
+
+    FOR (A : 0 : 1 : 5) {
+        WRITE(A) ;
+    }
+END
