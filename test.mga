@@ -1,27 +1,16 @@
 PROGRAM Test
 DECL
-    INTEGER : A, B ;
-    FLOAT : X ;
-    INTEGER : T[5] ;
-    CONST MAX = 10 ;
+INTEGER : A, B,MAX ;
+CONST PI = 3.14 ; 
 ENDDECL
 BEGIN
-    A = 5;
-    B = 3 ;
-    X = 2.5 ;
-
-    IF (A > B) {
-        WRITE(A) ;
-    }
-    ELSE {
-        WRITE(B) ;
-    }
-
-    WHILE (B < MAX) {
-        B = B + 1 ;
-    }
-
-    FOR (A : 0 : 1 : 5) {
-        WRITE(A) ;
-    }
+/*ici comments
+kkkkkkkkk*/
+A=3276988;
+IF ((A > B) || (A=0)) { 
+    MAX = A ; 
+} 
+ELSE { 
+    MAX = B ; 
+} 
 END

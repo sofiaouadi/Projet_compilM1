@@ -25,6 +25,8 @@ int   current_const = 0;      /* 0 = variable, 1 = constante  */
     struct {
         char *type;    /* "INTEGER" ou "FLOAT" */
         char *place;   /* T0, T1 … ou nom de variable */
+        int valeur;     
+    int isConst; 
     } expr;
 }
 
@@ -73,6 +75,29 @@ programme:
         generer_asm_8086("output.asm");
         printf("\nAnalyse et compilation terminees avec succes !\n");
     }
+    | PROGRAM error declarations BEGIN_T instructions END_T
+    {
+        printf(" Erreur Syntaxique : ligne %d : identificateur du programme manquant\n", ligne);
+        yyerrok;
+    }
+;
+     | error IDF declarations BEGIN_T instructions END_T
+    {
+        printf(" Erreur Syntaxique : ligne %d : mot-cle {PROGRAM}   manquant\n", ligne);
+        yyerrok;
+    }
+    | PROGRAM IDF declarations error instructions END_T
+    {
+        printf(" Erreur Syntaxique : ligne %d : mot-cle {BEGIN} manquant\n", ligne);
+        yyerrok;
+    }
+;
+     | PROGRAM IDF declarations BEGIN_T instructions error
+    {
+        printf(" Erreur Syntaxique : ligne %d , colonne %d : mot-cle {END} manquant\n",
+               ligne, colonne);
+        yyerrok;  // permet de continuer proprement
+    }
 ;
 
 /* ════════════════════════════════════════
@@ -80,6 +105,16 @@ programme:
    ════════════════════════════════════════ */
 declarations:
     DECL liste_declarations ENDDECL
+     |error liste_declarations ENDDECL
+    {
+        printf(" Erreur Syntaxique : ligne %d : mot-cle {DECL}  manquant\n", ligne);
+        yyerrok;
+    }
+    || DECL liste_declarations error
+    {
+        printf(" Erreur Syntaxique : ligne %d : mot-cle {ENDDECL} manquant\n", ligne);
+        yyerrok;
+    }
 ;
 
 liste_declarations:
@@ -161,6 +196,12 @@ declaration_constante:
 instructions:
     /* vide */
     | instructions instruction
+    /*ELSE mal placé*/
+    |ELSE '{' instructions '}'
+    {
+        printf(" Erreur Syntaxique : ligne %d : ELSE sans IF\n", ligne);
+    }
+
 ;
 
 instruction:
@@ -210,19 +251,27 @@ affectation:
    EXPRESSIONS
    ════════════════════════════════════════ */
 expression:
-    INT_CONST {
-        char buf[30]; sprintf(buf, "%d", $1);
-        char *t = newTemp();
-        generer_quad("=", buf, "", t);
-        $$.type  = "INTEGER";
-        $$.place = t;
-    }
+     INT_CONST {
+    char buffer[20];
+    sprintf(buffer, "%d", $1);
+
+    char* temp = newTemp();
+    generer_quad("=", buffer, "", temp);
+
+    $$.type = "INTEGER";
+    $$.place = temp;
+
+    $$.valeur = $1;
+    $$.isConst = 1;
+}
     | FLOAT_CONST {
         char buf[30]; sprintf(buf, "%f", $1);
         char *t = newTemp();
         generer_quad("=", buf, "", t);
         $$.type  = "FLOAT";
         $$.place = t;
+        $$.valeur = $1;
+        $$.isConst = 1;
     }
     | IDF {
         if (!existe($1))
@@ -269,19 +318,24 @@ expression:
         $$.place = t;
     }
     | expression '/' expression {
-        if (!compatible($1.type, $3.type))
-            printf("Erreur semantique ligne %d : types incompatibles dans '/'\n", ligne);
-        /* détection division par zéro sur constante littérale */
-        if (strcmp($3.place, "0") == 0)
-            printf("Erreur semantique ligne %d : division par zero\n", ligne);
-        char *t = newTemp();
-        generer_quad("/", $1.place, $3.place, t);
-        $$.type  = "FLOAT";
-        $$.place = t;
+
+    if (!compatible($1.type, $3.type)) {
+        printf("❌ Type incompatible dans /\n");
     }
-    | '(' expression ')' {
-        $$ = $2;
+
+    // 🔥 detection fiable
+    if ($3.isConst && $3.valeur == 0) {
+        printf(" Erreur semantique ligne %d : division par zero\n", ligne);
     }
+
+    char* temp = newTemp();
+    generer_quad("/", $1.place, $3.place, temp);
+
+    $$.type = "FLOAT";
+    $$.place = temp;
+
+    $$.isConst = 0;
+}
 ;
 
 /* ════════════════════════════════════════
@@ -383,6 +437,12 @@ InstructionIf:
             /* label de fin — atteint que l'on passe par THEN ou ELSE */
             generer_quad("label", "", "", $<str>9);
         }
+        //IF sans condition
+        |IF error '{' instructions '}'
+    {
+        printf(" Erreur Syntaxique : ligne %d : condition du IF manquante\n", ligne);
+        yyerrok;
+    }
 ;
 
 /* ── partie ELSE optionnelle (pas de conflit car ELSE est un token distinct) ── */
@@ -421,6 +481,12 @@ InstructionWhile:
             generer_quad("goto",  "", "", $<str>2);   /* retour en début de boucle */
             generer_quad("label", "", "", $<str>6);   /* label de sortie           */
         }
+        //while sans condition
+        | WHILE error '{' instructions '}'
+    {
+        printf(" Erreur Syntaxique : ligne %d : condition du WHILE manquante\n", ligne);
+        yyerrok;
+    }
 ;
 
 /* ════════════════════════════════════════
@@ -506,6 +572,12 @@ InstructionFor:
             /* label de fin */
             generer_quad("label", "", "", _for_lfin);
         }
+        //FOR sans éléments
+        | FOR error '{' instructions '}'
+    {
+        printf(" Erreur Syntaxique : ligne %d : syntaxe du FOR incorrecte\n", ligne);
+        yyerrok;
+    }
 ;
 
 /* ════════════════════════════════════════

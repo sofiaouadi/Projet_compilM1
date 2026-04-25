@@ -80,12 +80,14 @@ typedef union YYSTYPE
     struct {
         char *type;    /* "INTEGER" ou "FLOAT" */
         char *place;   /* T0, T1 … ou nom de variable */
+        int valeur;     
+    int isConst; 
     } expr;
 
 
 
 /* Line 1676 of yacc.c  */
-#line 89 "minialgo.tab.h"
+#line 91 "minialgo.tab.h"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
