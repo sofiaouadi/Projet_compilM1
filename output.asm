@@ -6,13 +6,15 @@
 .STACK 100h
 
 .DATA
-    PI DW 0
-    A DW 0
-    T1 DW 0
-    B DW 0
+    compteur DW 0
+    pair DW 0
+    impair DW 0
     L0 DW 0
-    MAX DW 0
+    T4 DW 0
     L1 DW 0
+    T8 DW 0
+    T10 DW 0
+    T12 DW 0
     _buf DB 6 DUP(?), '$'
 
 .CODE
@@ -20,44 +22,64 @@ MAIN PROC
     MOV AX, @DATA
     MOV DS, AX
 
-    ; [0] (=, 3.140000, , PI)
-    MOV AX, 3.140000
-    MOV [PI], AX
-
-    ; [1] (=, 3276988, , A)
-    MOV AX, 3276988
-    MOV [A], AX
-
-    ; [2] (>, 3276988, B, T1)
-    MOV AX, 3276988
-    MOV BX, [B]
-    CMP AX, BX
-    MOV AX, 0
-    JLE _skip2
+    ; [0] (=, 1, , compteur)
     MOV AX, 1
-_skip2:
-    MOV [T1], AX
+    MOV [compteur], AX
 
-    ; [3] (ifFalse, T1, , L0)
-    MOV AX, [T1]
-    CMP AX, 0
-    JE L0
+    ; [1] (=, 0, , pair)
+    MOV AX, 0
+    MOV [pair], AX
 
-    ; [4] (=, 3276988, , MAX)
-    MOV AX, 3276988
-    MOV [MAX], AX
+    ; [2] (=, 0, , impair)
+    MOV AX, 0
+    MOV [impair], AX
 
-    ; [5] (goto, , , L1)
-    JMP L1
-
-    ; [6] (label, , , L0)
+    ; [3] (label, , , L0)
 L0:
 
-    ; [7] (=, B, , MAX)
-    MOV AX, [B]
-    MOV [MAX], AX
+    ; [4] (<=, 1, 20, T4)
+    MOV AX, 1
+    MOV BX, 20
+    CMP AX, BX
+    MOV AX, 0
+    JG _skip4
+    MOV AX, 1
+_skip4:
+    MOV [T4], AX
 
-    ; [8] (label, , , L1)
+    ; [5] (ifFalse, T4, , L1)
+    MOV AX, [T4]
+    CMP AX, 0
+    JE L1
+
+    ; [6] (=, 1, , T8)
+    MOV AX, 1
+    MOV [T8], AX
+
+    ; [7] (=, T8, , pair)
+    MOV AX, [T8]
+    MOV [pair], AX
+
+    ; [8] (=, 1, , T10)
+    MOV AX, 1
+    MOV [T10], AX
+
+    ; [9] (=, T10, , impair)
+    MOV AX, [T10]
+    MOV [impair], AX
+
+    ; [10] (=, 2, , T12)
+    MOV AX, 2
+    MOV [T12], AX
+
+    ; [11] (=, T12, , compteur)
+    MOV AX, [T12]
+    MOV [compteur], AX
+
+    ; [12] (goto, , , L0)
+    JMP L0
+
+    ; [13] (label, , , L1)
 L1:
 
     ; --- FIN ---

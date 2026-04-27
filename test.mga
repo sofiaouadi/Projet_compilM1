@@ -1,16 +1,19 @@
-PROGRAM Test
+PROGRAM TestCo
 DECL
-INTEGER : A, B,MAX ;
-CONST PI = 3.14 ; 
+  INTEGER: compteur, pair, impair;
 ENDDECL
 BEGIN
-/*ici comments
-kkkkkkkkk*/
-A=3276988;
-IF ((A > B) || (A=0)) { 
-    MAX = A ; 
-} 
-ELSE { 
-    MAX = B ; 
-} 
+  compteur = 1;
+  pair = 0;
+  impair = 0;
+
+  WHILE (compteur <= 20) {
+    IF (compteur > 10) {
+      pair = pair + 1;
+    }
+    ELSE {
+      impair = impair + 1;
+    }
+    compteur = compteur + 1;
+  }
 END

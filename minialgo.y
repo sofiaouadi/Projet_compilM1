@@ -43,6 +43,9 @@ int   current_const = 0;      /* 0 = variable, 1 = constante  */
 %token <ival> INT_CONST
 %token <fval> FLOAT_CONST
 
+%nonassoc LOWER_THAN_ELSE
+%nonassoc ELSE
+
 /* ────────────────────────────────────────
    TYPES DES NON-TERMINAUX
    ──────────────────────────────────────── */
@@ -336,6 +339,12 @@ expression:
 
     $$.isConst = 0;
 }
+| '(' expression ')' {
+        $$.type = $2.type;
+        $$.place = $2.place;
+        $$.valeur = $2.valeur;
+        $$.isConst = $2.isConst;
+    }
 ;
 
 /* ════════════════════════════════════════
@@ -372,7 +381,7 @@ condition:
         generer_quad("<=", $1.place, $3.place, t);
         $$.type = "INTEGER"; $$.place = t;
     }
-    | '!' expression {
+    | '!' condition {
         char *t = newTemp();
         generer_quad("!", $2.place, "", t);
         $$.type = "INTEGER"; $$.place = t;
@@ -386,6 +395,10 @@ condition:
         char *t = newTemp();
         generer_quad("||", $1.place, $3.place, t);
         $$.type = "INTEGER"; $$.place = t;
+    }
+    | '(' condition ')' {
+        $$.type = $2.type;
+        $$.place = $2.place;
     }
 ;
 
@@ -416,27 +429,21 @@ condition:
      label _ _ Lend  <- optimisé en 1 seul label après
    ════════════════════════════════════════ */
 
+/* ===== INSTRUCTIONS IF ===== */
 InstructionIf:
-    IF '(' condition ')'
-        {
-            /* mid-rule unique : saut vers le bloc "faux" */
-            char *lfaux = newLabel();
-            generer_quad("ifFalse", $3.place, "", lfaux);
-            $<str>$ = lfaux;      /* position $5 */
+    IF '(' condition ')' '{' instructions '}'
+    {
+        if (strcmp($3.type, "INTEGER") != 0) {
+            printf("❌ Condition de IF doit être de type INTEGER\n");
         }
-    '{' instructions '}'
-        {
-            /* après le bloc THEN : goto fin + poser label faux */
-            char *lend = newLabel();
-            generer_quad("goto",  "", "", lend);
-            generer_quad("label", "", "", $<str>5);
-            $<str>$ = lend;       /* position $9 */
+    }
+    | IF '(' condition ')' '{' instructions '}' ELSE '{' instructions '}'
+    {
+        if (strcmp($3.type, "INTEGER") != 0) {
+            printf("❌ Condition de IF doit être de type INTEGER\n");           
         }
-    partie_else
-        {
-            /* label de fin — atteint que l'on passe par THEN ou ELSE */
-            generer_quad("label", "", "", $<str>9);
-        }
+    }
+    
         //IF sans condition
         |IF error '{' instructions '}'
     {
@@ -445,11 +452,7 @@ InstructionIf:
     }
 ;
 
-/* ── partie ELSE optionnelle (pas de conflit car ELSE est un token distinct) ── */
-partie_else:
-    /* vide */
-    | ELSE '{' instructions '}'
-;
+
 
 /* ════════════════════════════════════════
    INSTRUCTION WHILE
