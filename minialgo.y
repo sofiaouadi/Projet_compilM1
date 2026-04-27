@@ -592,6 +592,31 @@ write:
             printf("Erreur semantique ligne %d : WRITE ne peut afficher que INTEGER ou FLOAT\n", ligne);
         generer_quad("write", $3.place, "", "");
     }
+    | WRITE '(' IDF ')' ';' {
+    if (!existe($3)) {
+        printf("Erreur semantique ligne %d : '%s' non declare\n", ligne, $3); [cite: 143]
+    } else {
+        if (!estInitialisee($3)) {
+            printf("Avertissement ligne %d : '%s' utilisee sans initialisation\n", ligne, $3); 
+        }
+        if (isTableau($3)) {
+            printf("Erreur semantique ligne %d : '%s' est un tableau (indexation requise)\n", ligne, $3); 
+        }
+        generer_quad("WRITE", $3, "", ""); [cite: 138]
+    }
+}
+| WRITE '(' IDF '[' expression ']' ')' ';' {
+    // Vérification pour les éléments de tableau
+    if (!existe($3)) {
+        printf("Erreur semantique ligne %d : '%s' non declare\n", ligne, $3);
+    } else if (!isTableau($3)) {
+        printf("Erreur semantique ligne %d : '%s' n'est pas un tableau\n", ligne, $3);
+    } else if (strcmp($5.type, "INTEGER") != 0) {
+        printf("Erreur semantique ligne %d : l'indice du tableau doit etre un entier\n", ligne); 
+    } else {
+        generer_quad("WRITE", $5.place, "", ""); 
+    }
+}
 ;
 
 %%

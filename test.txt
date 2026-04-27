@@ -1,18 +1,48 @@
-PROGRAM Test
+PROGRAM TestComplet
 DECL
-INTEGER : A, B ;
-FLOAT : X ;
-INTEGER : T[10];
-CONST MAX = 10 ;
+  INTEGER: A, B, MAX, T[10];
+  FLOAT: X, Y;
+  CONST PI = 3.14;
+  CONST LIMIT = 50;
 ENDDECL
 BEGIN
-A = 5 ;
-B = 3 ;
-T[2]=12;
-IF (A > B) {
- WRITE(A);
-}
-ELSE {
- WRITE(B);
-}
+  // --- 1. ERREURS LEXICALES ---
+  $A = 5;                       // Erreur : '$' n'est pas un token valide [cite: 118]
+  variable_tres_longue = 10;    // Erreur : IDF > 8 caractères [cite: 62]
+  A = 32769;                    // Erreur : Hors intervalle [-32768, 32767] [cite: 52]
+
+  // --- 2. ERREURS SYNTAXIQUES ---
+  B = 10                        // Erreur : Point-virgule manquant [cite: 72, 141]
+  IF (A > B)                    // Erreur : Accolades '{' manquantes [cite: 79]
+     MAX = A;
+  
+  WHILE ( ) {                   // Erreur : Condition manquante 
+     A = A + 1;
+  }
+
+  // --- 3. ERREURS SÉMANTIQUES ---
+  C = 20;                       // Erreur : 'C' non déclaré 
+  PI = 4.0;                     // Erreur : Modification d'une constante 
+  
+  X = A + PI;                   // Sémantique : Vérifier compatibilité FLOAT/INTEGER 
+  
+  T[12] = 5;                    // Erreur : Index hors limites (si géré) 
+  T[X] = 2;                     // Erreur : Index de type FLOAT au lieu d'INTEGER 
+  
+  Y = A / 0;                    // Erreur : Division par zéro 
+  
+  WRITE(Z);                     // Erreur : 'Z' non déclaré [cite: 141, 161]
+  WRITE(T);                     // Erreur : Affichage d'un tableau sans index 
+
+  // --- 4. STRUCTURES IMBRIQUÉES (Vérification Quadruplets) ---
+  FOR (i: 0:1:5) {
+     WHILE (A < 100) {
+        IF (A == B) {
+           WRITE(A);
+        }
+        ELSE {
+           A = A + 2;
+        }
+     }
+  }
 END

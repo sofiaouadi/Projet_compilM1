@@ -14,7 +14,10 @@
     L1 DW 0
     T8 DW 0
     T10 DW 0
-    T12 DW 0
+    L2 DW 0
+    T11 DW 0
+    L3 DW 0
+    T14 DW 0
     _buf DB 6 DUP(?), '$'
 
 .CODE
@@ -68,18 +71,46 @@ _skip4:
     MOV AX, [T10]
     MOV [impair], AX
 
-    ; [10] (=, 2, , T12)
-    MOV AX, 2
-    MOV [T12], AX
+    ; [10] (label, , , L2)
+L2:
 
-    ; [11] (=, T12, , compteur)
-    MOV AX, [T12]
+    ; [11] (==, pair, pair, T11)
+    MOV AX, [pair]
+    MOV BX, [pair]
+    CMP AX, BX
+    MOV AX, 0
+    JNE _skip11
+    MOV AX, 1
+_skip11:
+    MOV [T11], AX
+
+    ; [12] (ifFalse, T11, , L3)
+    MOV AX, [T11]
+    CMP AX, 0
+    JE L3
+
+    ; [13] (=, 44, , pair)
+    MOV AX, 44
+    MOV [pair], AX
+
+    ; [14] (goto, , , L2)
+    JMP L2
+
+    ; [15] (label, , , L3)
+L3:
+
+    ; [16] (=, 2, , T14)
+    MOV AX, 2
+    MOV [T14], AX
+
+    ; [17] (=, T14, , compteur)
+    MOV AX, [T14]
     MOV [compteur], AX
 
-    ; [12] (goto, , , L0)
+    ; [18] (goto, , , L0)
     JMP L0
 
-    ; [13] (label, , , L1)
+    ; [19] (label, , , L1)
 L1:
 
     ; --- FIN ---
