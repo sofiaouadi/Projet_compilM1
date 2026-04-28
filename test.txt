@@ -15,7 +15,7 @@ BEGIN
   B = 10                        // Erreur : Point-virgule manquant [cite: 72, 141]
   IF (A > B)                    // Erreur : Accolades '{' manquantes [cite: 79]
      MAX = A;
-  
+
   WHILE ( ) {                   // Erreur : Condition manquante 
      A = A + 1;
   }
@@ -23,14 +23,14 @@ BEGIN
   // --- 3. ERREURS SÉMANTIQUES ---
   C = 20;                       // Erreur : 'C' non déclaré 
   PI = 4.0;                     // Erreur : Modification d'une constante 
-  
+
   X = A + PI;                   // Sémantique : Vérifier compatibilité FLOAT/INTEGER 
-  
+
   T[12] = 5;                    // Erreur : Index hors limites (si géré) 
   T[X] = 2;                     // Erreur : Index de type FLOAT au lieu d'INTEGER 
-  
+
   Y = A / 0;                    // Erreur : Division par zéro 
-  
+
   WRITE(Z);                     // Erreur : 'Z' non déclaré [cite: 141, 161]
   WRITE(T);                     // Erreur : Affichage d'un tableau sans index 
 

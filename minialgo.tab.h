@@ -62,7 +62,7 @@
      IDF = 278,
      INT_CONST = 279,
      FLOAT_CONST = 280,
-     LOWER_THAN_ELSE = 281
+     IFX = 281
    };
 #endif
 

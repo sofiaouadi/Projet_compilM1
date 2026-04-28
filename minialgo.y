@@ -43,9 +43,6 @@ int   current_const = 0;      /* 0 = variable, 1 = constante  */
 %token <ival> INT_CONST
 %token <fval> FLOAT_CONST
 
-%nonassoc LOWER_THAN_ELSE
-%nonassoc ELSE
-
 /* ────────────────────────────────────────
    TYPES DES NON-TERMINAUX
    ──────────────────────────────────────── */
@@ -61,6 +58,10 @@ int   current_const = 0;      /* 0 = variable, 1 = constante  */
 %left '<' '>' GE LE
 %left '+' '-'
 %left '*' '/'
+
+%nonassoc ELSE
+%nonassoc IFX
+%expect 0
 
 %%
 
@@ -113,7 +114,7 @@ declarations:
         printf(" Erreur Syntaxique : ligne %d : mot-cle {DECL}  manquant\n", ligne);
         yyerrok;
     }
-    || DECL liste_declarations error
+     | DECL liste_declarations error
     {
         printf(" Erreur Syntaxique : ligne %d : mot-cle {ENDDECL} manquant\n", ligne);
         yyerrok;
@@ -121,7 +122,6 @@ declarations:
 ;
 
 liste_declarations:
-    /* vide */
     | liste_declarations declaration
 ;
 
@@ -197,14 +197,7 @@ declaration_constante:
    INSTRUCTIONS
    ════════════════════════════════════════ */
 instructions:
-    /* vide */
     | instructions instruction
-    /*ELSE mal placé*/
-    |ELSE '{' instructions '}'
-    {
-        printf(" Erreur Syntaxique : ligne %d : ELSE sans IF\n", ligne);
-    }
-
 ;
 
 instruction:
@@ -339,12 +332,6 @@ expression:
 
     $$.isConst = 0;
 }
-| '(' expression ')' {
-        $$.type = $2.type;
-        $$.place = $2.place;
-        $$.valeur = $2.valeur;
-        $$.isConst = $2.isConst;
-    }
 ;
 
 /* ════════════════════════════════════════
@@ -397,8 +384,8 @@ condition:
         $$.type = "INTEGER"; $$.place = t;
     }
     | '(' condition ')' {
-        $$.type = $2.type;
-        $$.place = $2.place;
+    $$.type = $2.type;
+    $$.place = $2.place;
     }
 ;
 
@@ -431,27 +418,46 @@ condition:
 
 /* ===== INSTRUCTIONS IF ===== */
 InstructionIf:
-    IF '(' condition ')' '{' instructions '}'
+    IF '(' condition ')'
     {
-        if (strcmp($3.type, "INTEGER") != 0) {
-            printf("❌ Condition de IF doit être de type INTEGER\n");
-        }
+        // 🔹 créer label faux
+        char *lfaux = newLabel();
+        generer_quad("ifFalse", $3.place, "", lfaux);
+
+        // stocker label faux
+        $<str>$ = lfaux;
     }
-    | IF '(' condition ')' '{' instructions '}' ELSE '{' instructions '}'
+    '{' instructions '}'
     {
-        if (strcmp($3.type, "INTEGER") != 0) {
-            printf("❌ Condition de IF doit être de type INTEGER\n");           
-        }
+        // 🔹 créer label fin
+        char *lend = newLabel();
+
+        // saut après THEN
+        generer_quad("goto", "", "", lend);
+
+        // placer label faux
+        generer_quad("label", "", "", $<str>5);
+
+        // stocker label fin
+        $<str>$ = lend;
+    }
+    SuiteElse
+    {
+        // 🔹 label final
+        generer_quad("label", "", "", $<str>9);
     }
     
-        //IF sans condition
-        |IF error '{' instructions '}'
+    | IF error '{' instructions '}'
     {
-        printf(" Erreur Syntaxique : ligne %d : condition du IF manquante\n", ligne);
+        printf("Erreur Syntaxique : ligne %d : condition du IF manquante\n", ligne);
         yyerrok;
     }
 ;
 
+SuiteElse:
+    /*vide*/
+    | ELSE '{' instructions '}'
+;
 
 
 /* ════════════════════════════════════════
@@ -592,31 +598,6 @@ write:
             printf("Erreur semantique ligne %d : WRITE ne peut afficher que INTEGER ou FLOAT\n", ligne);
         generer_quad("write", $3.place, "", "");
     }
-    | WRITE '(' IDF ')' ';' {
-    if (!existe($3)) {
-        printf("Erreur semantique ligne %d : '%s' non declare\n", ligne, $3); [cite: 143]
-    } else {
-        if (!estInitialisee($3)) {
-            printf("Avertissement ligne %d : '%s' utilisee sans initialisation\n", ligne, $3); 
-        }
-        if (isTableau($3)) {
-            printf("Erreur semantique ligne %d : '%s' est un tableau (indexation requise)\n", ligne, $3); 
-        }
-        generer_quad("WRITE", $3, "", ""); [cite: 138]
-    }
-}
-| WRITE '(' IDF '[' expression ']' ')' ';' {
-    // Vérification pour les éléments de tableau
-    if (!existe($3)) {
-        printf("Erreur semantique ligne %d : '%s' non declare\n", ligne, $3);
-    } else if (!isTableau($3)) {
-        printf("Erreur semantique ligne %d : '%s' n'est pas un tableau\n", ligne, $3);
-    } else if (strcmp($5.type, "INTEGER") != 0) {
-        printf("Erreur semantique ligne %d : l'indice du tableau doit etre un entier\n", ligne); 
-    } else {
-        generer_quad("WRITE", $5.place, "", ""); 
-    }
-}
 ;
 
 %%
